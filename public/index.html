@@ -4,35 +4,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Send Invitation</title>
+    <title>Send Wedding Invitation</title>
+    <style>
+        /* Reset some default styles */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            width: 80%;
+            max-width: 900px;
+            margin: 20px auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            margin-top: 0;
+        }
+
+        label {
+            display: block;
+            margin: 10px 0 5px;
+        }
+
+        input[type="text"],
+        input[type="date"],
+        input[type="time"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
 </head>
 
 <body>
-    <h1>Send Wedding Invitation</h1>
-    <form action="/send-invitation" method="post">
-        <label for="chatId">Chat ID:</label>
-        <input type="text" id="chatId" name="chatId" required>
-        <br>
-        <label for="name">Name:</label>
-        <input type="text" id="name" name="name" required>
-        <br>
-        <label for="date">Date:</label>
-        <input type="date" id="date" name="date" required>
-        <br>
-        <label for="time">Time:</label>
-        <input type="time" id="time" name="time" required>
-        <br>
-        <label for="location">Location:</label>
-        <input type="text" id="location" name="location" required>
-        <br>
-        <label for="groomName">Pengantin Laki-laki:</label>
-        <input type="text" id="groomName" name="groomName" required>
-        <br>
-        <label for="brideName">Pengantin Perempuan:</label>
-        <input type="text" id="brideName" name="brideName" required>
-        <br>
-        <button type="submit">Send Invitation</button>
-    </form>
+    <div class="container">
+        <h1>Send Wedding Invitation</h1>
+        <form action="/send-invitation" method="post">
+            <div class="card">
+                <h2>Invitation Details</h2>
+                <label for="chatId">Chat ID:</label>
+                <input type="text" id="chatId" name="chatId" required>
+                <br>
+                <label for="name">Name:</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+
+            <div class="card">
+                <h2>Akad Details</h2>
+                <label for="dateAkad">Date Akad:</label>
+                <input type="date" id="dateAkad" name="dateAkad" required>
+                <br>
+                <label for="timeAkad">Time Akad:</label>
+                <input type="time" id="timeAkad" name="timeAkad" required>
+                <br>
+                <label for="locationAkad">Location Akad:</label>
+                <input type="text" id="locationAkad" name="locationAkad" required>
+            </div>
+
+            <div class="card">
+                <h2>Resepsi Details</h2>
+                <label for="dateResepsi">Date Resepsi:</label>
+                <input type="date" id="dateResepsi" name="dateResepsi" required>
+                <br>
+                <label for="timeResepsi">Time Resepsi:</label>
+                <input type="time" id="timeResepsi" name="timeResepsi" required>
+                <br>
+                <label for="locationResepsi">Location Resepsi:</label>
+                <input type="text" id="locationResepsi" name="locationResepsi" required>
+            </div>
+
+            <div class="card">
+                <h2>Names</h2>
+                <label for="groomName">Pengantin Laki-laki:</label>
+                <input type="text" id="groomName" name="groomName" required>
+                <br>
+                <label for="brideName">Pengantin Perempuan:</label>
+                <input type="text" id="brideName" name="brideName" required>
+            </div>
+
+            <button type="submit">Send Invitation</button>
+        </form>
+    </div>
 </body>
 
 </html>
