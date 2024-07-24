@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Send Invitation</title>
+</head>
+
+<body>
+    <h1>Send Wedding Invitation</h1>
+    <form action="/send-invitation" method="post">
+        <label for="chatId">Chat ID:</label>
+        <input type="text" id="chatId" name="chatId" required>
+        <br>
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" required>
+        <br>
+        <label for="date">Date:</label>
+        <input type="date" id="date" name="date" required>
+        <br>
+        <label for="time">Time:</label>
+        <input type="time" id="time" name="time" required>
+        <br>
+        <label for="location">Location:</label>
+        <input type="text" id="location" name="location" required>
+        <br>
+        <label for="groomName">Pengantin Laki-laki:</label>
+        <input type="text" id="groomName" name="groomName" required>
+        <br>
+        <label for="brideName">Pengantin Perempuan:</label>
+        <input type="text" id="brideName" name="brideName" required>
+        <br>
+        <button type="submit">Send Invitation</button>
+    </form>
+</body>
+
+</html>
