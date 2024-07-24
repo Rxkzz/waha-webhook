@@ -11,6 +11,9 @@ app.use(bodyParser.json());
 // WAHA API configuration
 const wahaApiUrl = 'http://localhost:3000'; // Ganti dengan URL WAHA API Anda
 
+// Your WhatsApp ID (ganti dengan ID WhatsApp Anda)
+const yourWhatsAppId = '6283129701774@c.us';
+
 // Function to send a text message via WAHA API
 const sendText = async (chatId, text) => {
   try {
@@ -48,6 +51,12 @@ app.post('/webhook', async (req, res) => {
 
   console.log('Received message from:', from);
   console.log('Message Body:', body);
+
+  // Jika pengirim adalah ID Anda sendiri, tidak mengirim balasan
+  if (from === yourWhatsAppId) {
+    console.log('Message is from myself. No reply will be sent.');
+    return res.status(200).send('Message from myself. No reply sent.');
+  }
 
   // Balas pesan sesuai dengan isi pesan yang diterima
   let replyText;
