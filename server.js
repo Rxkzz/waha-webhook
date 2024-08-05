@@ -10,23 +10,8 @@ const port = 4000;
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const wahaApiUrl = 'http://localhost:3000';
+const wahaApiUrl = 'http://localhost:3000'; // Ganti dengan URL WAHA API Anda
 const yourWhatsAppId = '6283129701774@c.us';
-
-let globalGroomName = '';
-let globalBrideName = '';
-let globalDateAkad = '';
-let globalTimeAkad = '';
-let globalLocationAkad = '';
-let globalDateResepsi = '';
-let globalTimeResepsi = '';
-let globalLocationResepsi = '';
-let globalGuests = 0;
-let globalAccommodation = '';
-let isRSVPCompleted = false;
-let awaitingGuests = false;
-let awaitingAccommodation = false;
-let awaitingResetConfirmation = false;
 
 // Test database connection
 sequelize.authenticate()
@@ -37,6 +22,21 @@ sequelize.authenticate()
     console.error('Unable to connect to the database:', err);
   });
 
+// Define global variables at the top of your server.js file
+let globalGroomName = '';
+let globalBrideName = '';
+let globalDateAkad = '';
+let globalTimeAkad = '';
+let globalLocationAkad = '';
+let globalDateResepsi = '';
+let globalTimeResepsi = '';
+let globalLocationResepsi = '';
+let isRSVPCompleted = false;
+let awaitingGuests = false;
+let awaitingAccommodation = false;
+let awaitingResetConfirmation = false;
+let globalGuests = 0; // Add this to manage the number of guests
+
 const sendText = async (chatId, text) => {
   try {
     const response = await axios.post(
@@ -44,7 +44,7 @@ const sendText = async (chatId, text) => {
       {
         chatId,
         text,
-        session: 'default'
+        session: 'default' // Sesuaikan dengan session yang Anda gunakan
       },
       {
         headers: {
@@ -60,39 +60,52 @@ const sendText = async (chatId, text) => {
   }
 };
 
+
+
+app.post('/send-invitation', async (req, res) => {
+  const { chatId, name, groomName, brideName, dateAkad, timeAkad, locationAkad, dateResepsi, timeResepsi, locationResepsi } = req.body;
+
+  // Simpan data ke variabel global (jika diperlukan)
+  globalGroomName = groomName;
+  globalBrideName = brideName;
+  globalDateAkad = dateAkad;
+  globalTimeAkad = timeAkad;
+  globalLocationAkad = locationAkad;
+  globalDateResepsi = dateResepsi;
+  globalTimeResepsi = timeResepsi;
+  globalLocationResepsi = locationResepsi;
+
+  // Construct the invitation message
+  const invitationText = `
+    Hii,
+    Bersama undangan ini, saya turut mengundang
+    Bapak/Ibu/Saudara untuk hadir acara pernikahan kami
+    ${groomName} & ${brideName}
+    Akad akan di gelar pada
+    Hari dan Tanggal : ${dateAkad} 
+    Pukul : ${timeAkad}.
+    Location: ${locationAkad}
+    Demikian undangan dari kami yang sedang berbahagia.
+    Kami berharap Bapak/Ibu/Saudara berkenan untuk hadir di acara kami ini.
+    Anda bisa konfirmasi kehadiran undangan
+    Atau ketik "RSVP"
+  `;
+
+  try {
+    // Fungsi untuk mengirim teks (misalnya melalui WhatsApp API)
+    await sendText(chatId, invitationText);
+    res.status(200).send('Invitation sent successfully');
+  } catch (error) {
+    console.error('Error sending invitation:', error);
+    res.status(500).send('Failed to send invitation');
+  }
+});
+
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.post('/save-data', async (req, res) => {
-  const { groomName, brideName, dateAkad, timeAkad, locationAkad, dateResepsi, timeResepsi, locationResepsi } = req.body;
-
-  try {
-    console.log('Saving data:', { groomName, brideName, dateAkad, timeAkad, locationAkad, dateResepsi, timeResepsi, locationResepsi });
-    await sequelize.query(
-      `INSERT INTO invitations (groom_name, bride_name, date_akad, time_akad, location_akad, date_resepsi, time_resepsi, location_resepsi)
-       VALUES (:groomName, :brideName, :dateAkad, :timeAkad, :locationAkad, :dateResepsi, :timeResepsi, :locationResepsi)`,
-      {
-        replacements: {
-          groomName,
-          brideName,
-          dateAkad,
-          timeAkad,
-          locationAkad,
-          dateResepsi,
-          timeResepsi,
-          locationResepsi
-        },
-        type: sequelize.QueryTypes.INSERT
-      }
-    );
-    console.log('Data successfully saved');
-    res.status(200).send('Data successfully saved');
-  } catch (error) {
-    console.error('Failed to save data:', error);
-    res.status(500).send('Failed to save data');
-  }
-});
 
 app.post('/webhook', async (req, res) => {
   const webhookData = req.body;
@@ -100,8 +113,6 @@ app.post('/webhook', async (req, res) => {
   console.log('Payload:', JSON.stringify(webhookData, null, 2));
 
   const { from, body, isGroupMsg } = webhookData.payload;
-  console.log('Received message from:', from);
-  console.log('Message Body:', body);
 
   if (isGroupMsg || from === yourWhatsAppId) {
     console.log('Message is from a group or from myself. No reply will be sent.');
@@ -109,7 +120,6 @@ app.post('/webhook', async (req, res) => {
   }
 
   let replyText = '';
-  let accommodationText = ''; // Initialize accommodationText here
 
   if (body.toLowerCase().includes('hello')) {
     replyText = 'Hello! How can I assist you today?';
@@ -117,9 +127,8 @@ app.post('/webhook', async (req, res) => {
     replyText = 'Here are some commands you can use: "rsvp"';
   } else if (body.toLowerCase().includes('rsvp')) {
     replyText = `
-      Hi ${webhookData.payload.senderName},
-      Bersama undangan ini, saya turut mengundang
-      Bapak/Ibu/Saudara untuk hadir acara pernikahan kami
+      Hii,
+      Bersama undangan ini, saya turut mengundang Bapak/Ibu/Saudara untuk hadir acara pernikahan kami
       *${globalGroomName} & ${globalBrideName}*
       Akad akan di gelar pada
       *Hari dan Tanggal : ${globalDateAkad}*
@@ -171,74 +180,64 @@ app.post('/webhook', async (req, res) => {
         1. 1 malam check in di 16 Januari 2024, check out di 17 Januari 2024
         2. 1 malam check in di 15 Januari 2024, check out di 16 Januari 2024
         3. Tanpa hotel
-        Balas pesan ini dengan angka (contoh: *2*).
       `;
     }
-  } else if (awaitingAccommodation) {
+  } else if (awaitingAccommodation && body.toLowerCase().match(/^\d+$/)) {
     const accommodationOption = parseInt(body);
+    let accommodationText = '';
 
     if (accommodationOption === 1) {
-      accommodationText = '1 malam check in di 16 Januari 2024, check out di 17 Januari 2024';
+      accommodationText = '1 malam check-in di 16 Januari 2024, check-out di 17 Januari 2024';
     } else if (accommodationOption === 2) {
-      accommodationText = '1 malam check in di 15 Januari 2024, check out di 16 Januari 2024';
+      accommodationText = '1 malam check-in di 15 Januari 2024, check-out di 16 Januari 2024';
     } else if (accommodationOption === 3) {
       accommodationText = 'Tanpa hotel';
     } else {
-      replyText = 'Pilihan tidak valid. Mohon pilih opsi yang benar.';
-      return res.status(200).send(replyText);
+      replyText = 'Pilihan tidak valid. Mohon pilih 1, 2, atau 3.';
+      return res.status(200).send('Invalid option');
     }
 
-    // Save data to database
     try {
       await sequelize.query(
-        `INSERT INTO rsvp (sender_name, number_of_guests, accommodation)
-         VALUES (:senderName, :numberOfGuests, :accommodation)`,
+        'INSERT INTO invitations (groom_name, bride_name, date_akad, time_akad, location_akad, date_resepsi, time_resepsi, location_resepsi, guests, accommodation, is_rsvp_completed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         {
-          replacements: {
-            senderName: webhookData.payload.senderName || 'Unknown Sender',
-            numberOfGuests: globalGuests,
-            accommodation: accommodationOption // Use accommodationOption directly
-          },
+          replacements: [globalGroomName, globalBrideName, globalDateAkad, globalTimeAkad, globalLocationAkad, globalDateResepsi, globalTimeResepsi, globalLocationResepsi, globalGuests, accommodationText, true],
           type: sequelize.QueryTypes.INSERT
         }
       );
-      console.log('RSVP data successfully saved');
-      replyText = `Terima kasih atas konfirmasinya! ...`;
+      replyText = `Terimakasih telah melengkapi RSVP. Kami menunggu kehadiran Anda.
+       
+        Daftar kehadiran Anda:
+        - Nama Pengantin: ${globalGroomName} & ${globalBrideName}
+        - Tanggal Akad: ${globalDateAkad}
+        - Waktu Akad: ${globalTimeAkad}
+        - Lokasi Akad: ${globalLocationAkad}
+        - Tanggal Resepsi: ${globalDateResepsi}
+        - Waktu Resepsi: ${globalTimeResepsi}
+        - Lokasi Resepsi: ${globalLocationResepsi}
+        - Jumlah Tamu: ${globalGuests}
+        - Akomodasi: ${accommodationText}
+      `;
+      awaitingAccommodation = false;
+      awaitingGuests = false;
+      awaitingResetConfirmation = true;
     } catch (error) {
-      console.error('Failed to save RSVP data:', error);
-      replyText = 'Terjadi kesalahan saat menyimpan data. Mohon coba lagi.';
+      console.error('Error saving RSVP data:', error);
+      replyText = 'Gagal menyimpan data RSVP. Mohon coba lagi nanti.';
     }
-  } else if (awaitingResetConfirmation && body.toLowerCase() === 'reset') {
-    // Reset global variables
-    globalGroomName = '';
-    globalBrideName = '';
-    globalDateAkad = '';
-    globalTimeAkad = '';
-    globalLocationAkad = '';
-    globalDateResepsi = '';
-    globalTimeResepsi = '';
-    globalLocationResepsi = '';
-    globalGuests = 0;
-    globalAccommodation = '';
-    isRSVPCompleted = false;
-    awaitingGuests = false;
-    awaitingAccommodation = false;
-    awaitingResetConfirmation = false;
-
-    replyText = 'Semua data telah direset. Jika ada pertanyaan, silakan kirim pesan lagi.';
   }
 
-  // Send reply message
-  if (replyText) {
-    await sendText(from, replyText);
+  try {
+    if (replyText) {
+      await sendText(from, replyText);
+    }
+    res.status(200).send('Reply sent');
+  } catch (error) {
+    console.error('Error sending reply:', error);
+    res.status(500).send('Failed to send reply');
   }
-
-  res.status(200).send('Webhook processed successfully');
 });
 
-
-
-// Start the server
 app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+  console.log(`Server is running on port ${port}`);
 });
