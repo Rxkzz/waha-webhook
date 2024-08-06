@@ -143,7 +143,7 @@ app.post('/webhook', async (req, res) => {
       Demikian undangan dari kami yang sedang berbahagia.
       Kami berharap Bapak/Ibu/Saudara berkenan untuk hadir di acara kami ini.
 
-      Apakah Anda akan hadir? Balas dengan 
+      Apakah Anda akan hadir? Balas dengan
       *Hadir*
       *Tidak Hadir*
     `;
@@ -197,16 +197,42 @@ app.post('/webhook', async (req, res) => {
       return res.status(200).send('Invalid option');
     }
 
+    // Insert data into invitations table
     try {
-      await sequelize.query(
-        'INSERT INTO invitations (groom_name, bride_name, date_akad, time_akad, location_akad, date_resepsi, time_resepsi, location_resepsi, guests, accommodation, is_rsvp_completed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        {
-          replacements: [globalGroomName, globalBrideName, globalDateAkad, globalTimeAkad, globalLocationAkad, globalDateResepsi, globalTimeResepsi, globalLocationResepsi, globalGuests, accommodationText, true],
-          type: sequelize.QueryTypes.INSERT
-        }
-      );
+      await sequelize.transaction(async (transaction) => {
+        await sequelize.query(
+          `INSERT INTO invitations (groom_name, bride_name, date_akad, time_akad, location_akad, date_resepsi, time_resepsi, location_resepsi, guest, accomodation, is_rsvp_completed, chat_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          {
+            bind: [
+              globalGroomName,
+              globalBrideName,
+              globalDateAkad,
+              globalTimeAkad,
+              globalLocationAkad,
+              globalDateResepsi,
+              globalTimeResepsi,
+              globalLocationResepsi,
+              globalGuests,
+              accommodationText,
+              true, // Mark RSVP as completed
+              from // Add chat_id to the query
+            ],
+            transaction,
+          }
+        );
+
+        await sequelize.query(
+          `INSERT INTO rsvp_message (event_id, sender_id, recipient_id, message_body, status) VALUES ($1, $2, $3, $4, $5)`,
+          {
+            bind: [null, from, yourWhatsAppId, replyText, 'responded'],
+            transaction,
+          }
+        );
+      });
+
       replyText = `Terimakasih telah melengkapi RSVP. Kami menunggu kehadiran Anda.
-       
+
         Daftar kehadiran Anda:
         - Nama Pengantin: ${globalGroomName} & ${globalBrideName}
         - Tanggal Akad: ${globalDateAkad}
@@ -237,6 +263,7 @@ app.post('/webhook', async (req, res) => {
     res.status(500).send('Failed to send reply');
   }
 });
+
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
