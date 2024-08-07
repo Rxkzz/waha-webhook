@@ -37,6 +37,7 @@ let awaitingAccommodation = false;
 let awaitingResetConfirmation = false;
 let globalGuests = 0; // Add this to manage the number of guests
 
+
 const sendText = async (chatId, text) => {
   try {
     const response = await axios.post(
@@ -74,6 +75,7 @@ app.post('/send-invitation', async (req, res) => {
   globalDateResepsi = dateResepsi;
   globalTimeResepsi = timeResepsi;
   globalLocationResepsi = locationResepsi;
+  
 
   // Construct the invitation message
   const invitationText = `
@@ -120,6 +122,8 @@ app.post('/webhook', async (req, res) => {
   }
 
   let replyText = '';
+  let finalMessage = ''; // Declare finalMessage at the top
+  let finalMessage2 = ''; // Declare finalMessage2 at the top
 
   if (body.toLowerCase().includes('hello')) {
     replyText = 'Hello! How can I assist you today?';
@@ -160,11 +164,64 @@ app.post('/webhook', async (req, res) => {
       Berapa orang yang akan hadir? (contoh: *2*)
     `;
   } else if (body.toLowerCase() === 'tidak hadir') {
-    replyText = 'Terima kasih atas informasinya. Jika ada perubahan, silakan informasikan kembali.';
+    finalMessage2 = 
+     `Kehadiran : Tidak hadir
+      Nama Pengantin: ${globalGroomName} & ${globalBrideName}
+      Tanggal Akad: ${globalDateAkad}
+      Waktu Akad: ${globalTimeAkad}
+      Lokasi Akad: ${globalLocationAkad}
+      Tanggal Resepsi: ${globalDateResepsi}
+      Waktu Resepsi: ${globalTimeResepsi}
+      Lokasi Resepsi: ${globalLocationResepsi}`;
+
+    replyText = `
+     Kehadiran : Tidak hadir
+      Terima kasih atas informasinya. Jika ada perubahan, silakan informasikan kembali.
+      
+      Berikut adalah detail acara:
+      ${finalMessage2}
+    `;
     isRSVPCompleted = true;
     awaitingGuests = false;
     awaitingAccommodation = false;
     awaitingResetConfirmation = false;
+
+      try {
+      await sequelize.transaction(async (transaction) => {
+        await sequelize.query(
+          `INSERT INTO invitations (groom_name, bride_name, date_akad, time_akad, location_akad, date_resepsi, time_resepsi, location_resepsi, guest, accomodation, is_rsvp_completed, chat_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          {
+            bind: [
+              globalGroomName,
+              globalBrideName,
+              globalDateAkad,
+              globalTimeAkad,
+              globalLocationAkad,
+              globalDateResepsi,
+              globalTimeResepsi,
+              globalLocationResepsi,
+              0, // Jumlah tamu tidak relevan untuk "tidak hadir"
+              'Tidak', // Tidak memerlukan akomodasi
+              true,
+              from
+            ],
+            transaction,
+          }
+        );
+
+        await sequelize.query(
+          `INSERT INTO rsvp_message (event_id, sender_id, recipient_id, message_body, status) VALUES ($1, $2, $3, $4, $5)`,
+          {
+            bind: [null, from, yourWhatsAppId, finalMessage2, 'responded'],
+            transaction,
+          }
+        );
+      });
+    } catch (error) {
+      console.error('Error saving RSVP data to database:', error);
+      replyText = 'Terjadi kesalahan saat menyimpan data RSVP.';
+    }
   } else if (awaitingGuests && body.toLowerCase().match(/^\d+$/)) {
     const guests = parseInt(body);
 
@@ -197,7 +254,18 @@ app.post('/webhook', async (req, res) => {
       return res.status(200).send('Invalid option');
     }
 
-    // Insert data into invitations table
+    finalMessage = 
+     `Kehadiran : Hadir
+      Nama Pengantin: ${globalGroomName} & ${globalBrideName}
+      Tanggal Akad: ${globalDateAkad}
+      Waktu Akad: ${globalTimeAkad}
+      Lokasi Akad: ${globalLocationAkad}
+      Tanggal Resepsi: ${globalDateResepsi}
+      Waktu Resepsi: ${globalTimeResepsi}
+      Lokasi Resepsi: ${globalLocationResepsi}
+      Jumlah Tamu: ${globalGuests}
+      Akomodasi: ${accommodationText}`;
+
     try {
       await sequelize.transaction(async (transaction) => {
         await sequelize.query(
@@ -215,8 +283,8 @@ app.post('/webhook', async (req, res) => {
               globalLocationResepsi,
               globalGuests,
               accommodationText,
-              true, // Mark RSVP as completed
-              from // Add chat_id to the query
+              true,
+              from
             ],
             transaction,
           }
@@ -225,7 +293,7 @@ app.post('/webhook', async (req, res) => {
         await sequelize.query(
           `INSERT INTO rsvp_message (event_id, sender_id, recipient_id, message_body, status) VALUES ($1, $2, $3, $4, $5)`,
           {
-            bind: [null, from, yourWhatsAppId, replyText, 'responded'],
+            bind: [null, from, yourWhatsAppId, finalMessage, 'responded'],
             transaction,
           }
         );
@@ -234,15 +302,7 @@ app.post('/webhook', async (req, res) => {
       replyText = `Terimakasih telah melengkapi RSVP. Kami menunggu kehadiran Anda.
 
         Daftar kehadiran Anda:
-        - Nama Pengantin: ${globalGroomName} & ${globalBrideName}
-        - Tanggal Akad: ${globalDateAkad}
-        - Waktu Akad: ${globalTimeAkad}
-        - Lokasi Akad: ${globalLocationAkad}
-        - Tanggal Resepsi: ${globalDateResepsi}
-        - Waktu Resepsi: ${globalTimeResepsi}
-        - Lokasi Resepsi: ${globalLocationResepsi}
-        - Jumlah Tamu: ${globalGuests}
-        - Akomodasi: ${accommodationText}
+        ${finalMessage}
       `;
       awaitingAccommodation = false;
       awaitingGuests = false;
