@@ -130,30 +130,89 @@ app.post('/webhook', async (req, res) => {
   } else if (body.toLowerCase().includes('help')) {
     replyText = 'Here are some commands you can use: "rsvp"';
   } else if (body.toLowerCase().includes('rsvp')) {
-    replyText = `
-      Hii,
-      Bersama undangan ini, saya turut mengundang Bapak/Ibu/Saudara untuk hadir acara pernikahan kami
-      *${globalGroomName} & ${globalBrideName}*
-      Akad akan di gelar pada
-      *Hari dan Tanggal : ${globalDateAkad}*
-      *Pukul : ${globalTimeAkad}.*
-      *Location: ${globalLocationAkad}*
+    try {
+      const [rows] = await sequelize.query(
+        `SELECT * FROM invitations WHERE chat_id = ?`,
+        {
+          replacements: [from],
+        }
+      );
 
-      Resepsi akan di gelar pada
-      *Hari dan Tanggal : ${globalDateResepsi}*
-      *Pukul : ${globalTimeResepsi}.*
-      *Location: ${globalLocationResepsi}*
+      if (rows.length > 0) {
+        const existingRSVP = rows[0];
+        replyText = `
+          Anda sudah terdaftar dengan rincian sebagai berikut:
+          Nama Pengantin: ${existingRSVP.groom_name} & ${existingRSVP.bride_name}
+          Tanggal Akad: ${existingRSVP.date_akad}
+          Waktu Akad: ${existingRSVP.time_akad}
+          Lokasi Akad: ${existingRSVP.location_akad}
+          Tanggal Resepsi: ${existingRSVP.date_resepsi}
+          Waktu Resepsi: ${existingRSVP.time_resepsi}
+          Lokasi Resepsi: ${existingRSVP.location_resepsi}
+          Jumlah Tamu: ${existingRSVP.guest}
+          Akomodasi: ${existingRSVP.accomodation}
+          
+          Apakah Anda ingin mereset pendaftaran ini? Balas dengan *RESET* jika ya.
+        `;
+        awaitingResetConfirmation = true;
+      } else {
+        replyText = `
+          Hii,
+          Bersama undangan ini, saya turut mengundang Bapak/Ibu/Saudara untuk hadir acara pernikahan kami
+          *${globalGroomName} & ${globalBrideName}*
+          Akad akan di gelar pada
+          *Hari dan Tanggal : ${globalDateAkad}*
+          *Pukul : ${globalTimeAkad}.*
+          *Location: ${globalLocationAkad}*
 
-      Demikian undangan dari kami yang sedang berbahagia.
-      Kami berharap Bapak/Ibu/Saudara berkenan untuk hadir di acara kami ini.
+          Resepsi akan di gelar pada
+          *Hari dan Tanggal : ${globalDateResepsi}*
+          *Pukul : ${globalTimeResepsi}.*
+          *Location: ${globalLocationResepsi}*
 
-      Apakah Anda akan hadir? Balas dengan
-      *Hadir*
-      *Tidak Hadir*
-    `;
-    awaitingGuests = false;
-    awaitingAccommodation = false;
-    awaitingResetConfirmation = false;
+          Demikian undangan dari kami yang sedang berbahagia.
+          Kami berharap Bapak/Ibu/Saudara berkenan untuk hadir di acara kami ini.
+
+          Apakah Anda akan hadir? Balas dengan
+          *Hadir*
+          *Tidak Hadir*
+        `;
+        awaitingGuests = false;
+        awaitingAccommodation = false;
+        awaitingResetConfirmation = false;
+      }
+    } catch (error) {
+      console.error('Error checking RSVP data:', error);
+      replyText = 'Terjadi kesalahan saat memeriksa data pendaftaran.';
+    }
+  } else if (awaitingResetConfirmation && body.toLowerCase() === 'reset') {
+    try {
+      await sequelize.transaction(async (transaction) => {
+        await sequelize.query(
+          `DELETE FROM invitations WHERE chat_id = ?`,
+          {
+            replacements: [from],
+            transaction,
+          }
+        );
+
+        await sequelize.query(
+          `DELETE FROM rsvp_message WHERE sender_id = ?`,
+          {
+            replacements: [from],
+            transaction,
+          }
+        );
+      });
+
+      replyText = 'Pendaftaran Anda telah direset. Silakan mulai dari awal.';
+      awaitingResetConfirmation = false;
+      awaitingGuests = false;
+      awaitingAccommodation = false;
+    } catch (error) {
+      console.error('Error resetting RSVP data:', error);
+      replyText = 'Gagal mereset data. Mohon coba lagi nanti.';
+    }
   } else if (body.toLowerCase() === 'hadir') {
     awaitingGuests = true;
     awaitingAccommodation = false;
@@ -186,13 +245,13 @@ app.post('/webhook', async (req, res) => {
     awaitingAccommodation = false;
     awaitingResetConfirmation = false;
 
-      try {
+    try {
       await sequelize.transaction(async (transaction) => {
         await sequelize.query(
           `INSERT INTO invitations (groom_name, bride_name, date_akad, time_akad, location_akad, date_resepsi, time_resepsi, location_resepsi, guest, accomodation, is_rsvp_completed, chat_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           {
-            bind: [
+            replacements: [
               globalGroomName,
               globalBrideName,
               globalDateAkad,
@@ -211,9 +270,9 @@ app.post('/webhook', async (req, res) => {
         );
 
         await sequelize.query(
-          `INSERT INTO rsvp_message (event_id, sender_id, recipient_id, message_body, status) VALUES ($1, $2, $3, $4, $5)`,
+          `INSERT INTO rsvp_message (event_id, sender_id, recipient_id, message_body, status) VALUES (?, ?, ?, ?, ?)`,
           {
-            bind: [null, from, yourWhatsAppId, finalMessage2, 'responded'],
+            replacements: [null, from, yourWhatsAppId, finalMessage2, 'Tidak hadir'],
             transaction,
           }
         );
@@ -250,12 +309,13 @@ app.post('/webhook', async (req, res) => {
     } else if (accommodationOption === 3) {
       accommodationText = 'Tanpa hotel';
     } else {
-      replyText = 'Pilihan tidak valid. Mohon pilih 1, 2, atau 3.';
-      return res.status(200).send('Invalid option');
+      replyText = 'Pilihan tidak valid. Mohon pilih antara 1, 2, atau 3.';
+      return res.status(200).send(replyText);
     }
 
-    finalMessage = 
-     `Kehadiran : Hadir
+    finalMessage = `
+      Terima kasih telah mengonfirmasi kehadiran Anda!
+      Detail Pendaftaran:
       Nama Pengantin: ${globalGroomName} & ${globalBrideName}
       Tanggal Akad: ${globalDateAkad}
       Waktu Akad: ${globalTimeAkad}
@@ -264,15 +324,19 @@ app.post('/webhook', async (req, res) => {
       Waktu Resepsi: ${globalTimeResepsi}
       Lokasi Resepsi: ${globalLocationResepsi}
       Jumlah Tamu: ${globalGuests}
-      Akomodasi: ${accommodationText}`;
+      Akomodasi: ${accommodationText}
+    `;
+    isRSVPCompleted = true;
+    awaitingAccommodation = false;
+    awaitingResetConfirmation = false;
 
     try {
       await sequelize.transaction(async (transaction) => {
         await sequelize.query(
           `INSERT INTO invitations (groom_name, bride_name, date_akad, time_akad, location_akad, date_resepsi, time_resepsi, location_resepsi, guest, accomodation, is_rsvp_completed, chat_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           {
-            bind: [
+            replacements: [
               globalGroomName,
               globalBrideName,
               globalDateAkad,
@@ -291,25 +355,22 @@ app.post('/webhook', async (req, res) => {
         );
 
         await sequelize.query(
-          `INSERT INTO rsvp_message (event_id, sender_id, recipient_id, message_body, status) VALUES ($1, $2, $3, $4, $5)`,
+          `INSERT INTO rsvp_message (event_id, sender_id, recipient_id, message_body, status) VALUES (?, ?, ?, ?, ?)`,
           {
-            bind: [null, from, yourWhatsAppId, finalMessage, 'responded'],
+            replacements: [null, from, yourWhatsAppId, finalMessage, 'Hadir'],
             transaction,
           }
         );
-      });
-
-      replyText = `Terimakasih telah melengkapi RSVP. Kami menunggu kehadiran Anda.
-
+         replyText = `Terimakasih telah melengkapi RSVP. Kami menunggu kehadiran Anda.
         Daftar kehadiran Anda:
         ${finalMessage}
       `;
       awaitingAccommodation = false;
       awaitingGuests = false;
-      awaitingResetConfirmation = true;
+      });
     } catch (error) {
-      console.error('Error saving RSVP data:', error);
-      replyText = 'Gagal menyimpan data RSVP. Mohon coba lagi nanti.';
+      console.error('Error saving RSVP data to database:', error);
+      replyText = 'Terjadi kesalahan saat menyimpan data RSVP.';
     }
   }
 
