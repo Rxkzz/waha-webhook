@@ -363,6 +363,7 @@ app.post('/webhook', async (req, res) => {
         );
          replyText = `Terimakasih telah melengkapi RSVP. Kami menunggu kehadiran Anda.
         Daftar kehadiran Anda:
+
         ${finalMessage}
       `;
       awaitingAccommodation = false;
