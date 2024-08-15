@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link href="css/styles.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-gray-100 font-sans antialiased">
+    <!-- Navbar -->
+    <header class="bg-blue-600 text-white p-4 flex justify-between items-center">
+        <h1 class="text-2xl">Dashboard</h1>
+        <nav>
+            <a href="./message.html" class="mr-4">Send Invitations</a>
+            <a href="./dashboard.html">Dashboard</a>
+        </nav>
+    </header>
+
+    <div class="flex">
+        <!-- Sidebar -->
+        <aside class="sidebar bg-white shadow-lg w-64 p-4">
+            <div class="sidebar-item">
+                <h2 class="text-xl font-semibold">Messages</h2>
+                <ul id="messageList" class="mt-4">
+                    <!-- Messages will be populated here -->
+                </ul>
+            </div>
+            <div class="sidebar-item mt-4">
+                <h2 class="text-xl font-semibold">Send Invitations</h2>
+                <a href="index.html" class="text-blue-600 underline">Go to Send Invitations</a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-4">
+            <div id="messageContent">
+                <!-- Selected message content will be displayed here -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Fetch and display messages
+        async function fetchMessages() {
+            const response = await fetch('/messages');
+            const messages = await response.json();
+            const messageList = document.getElementById('messageList');
+
+            messages.forEach(message => {
+                const listItem = document.createElement('li');
+                listItem.classList.add('text-blue-600', 'cursor-pointer', 'hover:underline');
+                listItem.textContent = `Message from ${message.from}`;
+                listItem.onclick = () => showMessageContent(message.id);
+                messageList.appendChild(listItem);
+            });
+        }
+
+        // Show message content
+        async function showMessageContent(id) {
+            const response = await fetch(`/messages/${id}`);
+            const message = await response.json();
+            const messageContent = document.getElementById('messageContent');
+
+            messageContent.innerHTML = `
+                <h2 class="text-xl font-semibold">Message Details</h2>
+                <p><strong>From:</strong> ${message.from}</p>
+                <p><strong>Message:</strong> ${message.message_body}</p>
+            `;
+        }
+
+        // Initial fetch
+        fetchMessages();
+    </script>
+</body>
+
+</html>

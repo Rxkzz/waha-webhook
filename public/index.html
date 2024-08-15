@@ -5,121 +5,143 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Send Wedding Invitation</title>
-    <style>
-        /* Reset some default styles */
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-        }
-
-        .container {
-            width: 80%;
-            max-width: 900px;
-            margin: 20px auto;
-        }
-
-        h1 {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        form {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .card {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-
-        .card h2 {
-            margin-top: 0;
-        }
-
-        label {
-            display: block;
-            margin: 10px 0 5px;
-        }
-
-        input[type="text"],
-        input[type="date"],
-        input[type="time"] {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            margin-bottom: 10px;
-        }
-
-        button {
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 10px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        button:hover {
-            background-color: #0056b3;
-        }
-    </style>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 
-<body>
-    <div class="container">
-        <h1>Send Wedding Invitation</h1>
-        <form action="/send-invitation" method="post">
-            <div class="card">
-                <h2>Invitation Details</h2>
-                <label for="chatId">Chat ID:</label>
-                <input type="text" id="chatId" name="chatId" required> 
-            </div>
+<body class="bg-gray-200 flex h-screen overflow-hidden">
+    <!-- Navbar -->
+    <nav class="w-16 bg-green-800 text-white flex flex-col items-center py-4 fixed h-full">
+        <a href="#" class="mb-6">
+            <img src="https://via.placeholder.com/40" alt="Logo" class="w-10 h-10 rounded-full">
+        </a>
+        <!-- Message Icon -->
+        <a href="message.html" class="mb-6 p-2 hover:bg-green-700 rounded">
+            <svg enable-background="new 0 0 80 80" height="35px" id="Icons" version="1.1" viewBox="0 0 80 80"
+                width="35px" xml:space="preserve" xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink">
+                <g fill="white">
+                    <path
+                        d="M15,15v38h14v13l12.919-13h23V15H15z M41.919,48h-2.071l-1.464,1.464l-4.464,4.464V53v-5h-5h-9V20H60v28H41.919z" />
+                    <circle cx="27.919" cy="34" r="4" />
+                    <circle cx="39.919" cy="34" r="4" />
+                    <circle cx="51.919" cy="34" r="4" />
+                </g>
+            </svg>
+        </a>
 
-        <div class="card">
-            <h2>Akad Details</h2>
-            <label for="dateAkad">Date Akad:</label>
-            <input type="date" id="dateAkad" name="dateAkad" required>
-            <br>
-            <label for="timeAkad">Time Akad:</label>
-            <input type="time" id="timeAkad" name="timeAkad" required>
-            <br>
-            <label for="locationAkad">Location Akad:</label>
-            <input type="text" id="locationAkad" name="locationAkad" required>
-        </div>
-        
-        <div class="card">
-            <h2>Resepsi Details</h2>
-            <label for="dateResepsi">Date Resepsi:</label>
-            <input type="date" id="dateResepsi" name="dateResepsi" required>
-            <br>
-            <label for="timeResepsi">Time Resepsi:</label>
-            <input type="time" id="timeResepsi" name="timeResepsi" required>
-            <br>
-            <label for="locationResepsi">Location Resepsi:</label>
-            <input type="text" id="locationResepsi" name="locationResepsi" required>
-        </div>
-        
-        <div class="card">
-            <h2>Names</h2>
-            <label for="groomName">Pengantin Laki-laki:</label>
-            <input type="text" id="groomName" name="groomName" required>
-            <br>
-            <label for="brideName">Pengantin Perempuan:</label>
-            <input type="text" id="brideName" name="brideName" required>
-        </div>
+        <!-- Send Icon -->
+        <a href="index.html" class="mb-6 p-2 hover:bg-green-700 rounded">
+            <svg data-name="Layer 21" height="30" id="Layer_21" viewBox="0 0 24 24" width="30"
+                xmlns="http://www.w3.org/2000/svg">
+                <polygon points="3 12 8.61 14.992 17 8 9 17.455 9 21 12.164 16.887 18 20 21 3 3 12" fill="white" />
+            </svg>
+        </a>
 
+        <!-- Another Icon -->
+        <a href="#" class="mb-6 p-2 hover:bg-green-700 rounded">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path>
+            </svg>
+        </a>
+    </nav>
 
-            <button type="submit">Send Invitation</button>
-        </form>
-    </div>
+    <!-- Main Content -->
+    <main class="flex-1 p-6 overflow-y-auto ml-16">
+        <div class="container mx-auto max-w-screen-lg bg-white rounded-lg shadow-md p-6 flex flex-col space-y-6">
+            <h1 class="text-2xl font-bold text-center mb-6">Send Wedding Invitation</h1>
+            <form action="/send-invitation" method="post" class="flex flex-col space-y-6">
+                <div class="flex flex-wrap -mx-4">
+                    <!-- Chat ID Card -->
+                    <div class="w-full md:w-1/3 px-4 mb-4">
+                        <div class="bg-white rounded-lg shadow-md p-6">
+                            <h2 class="text-xl font-semibold mb-4">Chat ID</h2>
+                            <div>
+                                <label for="chatId" class="block text-gray-700">Chat ID:</label>
+                                <input type="text" id="chatId" name="chatId" required
+                                    class="w-full p-3 border border-gray-300 rounded-md">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Akad Card -->
+                    <div class="w-full md:w-1/3 px-4 mb-4">
+                        <div class="bg-white rounded-lg shadow-md p-6">
+                            <h2 class="text-xl font-semibold mb-4">Akad</h2>
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="dateAkad" class="block text-gray-700">Date Akad:</label>
+                                    <input type="date" id="dateAkad" name="dateAkad" required
+                                        class="w-full p-3 border border-gray-300 rounded-md">
+                                </div>
+
+                                <div>
+                                    <label for="timeAkad" class="block text-gray-700">Time Akad:</label>
+                                    <input type="time" id="timeAkad" name="timeAkad" required
+                                        class="w-full p-3 border border-gray-300 rounded-md">
+                                </div>
+
+                                <div>
+                                    <label for="locationAkad" class="block text-gray-700">Location Akad:</label>
+                                    <input type="text" id="locationAkad" name="locationAkad" required
+                                        class="w-full p-3 border border-gray-300 rounded-md">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Resepsi Card -->
+                    <div class="w-full md:w-1/3 px-4 mb-4">
+                        <div class="bg-white rounded-lg shadow-md p-6">
+                            <h2 class="text-xl font-semibold mb-4">Resepsi</h2>
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="dateResepsi" class="block text-gray-700">Date Resepsi:</label>
+                                    <input type="date" id="dateResepsi" name="dateResepsi" required
+                                        class="w-full p-3 border border-gray-300 rounded-md">
+                                </div>
+
+                                <div>
+                                    <label for="timeResepsi" class="block text-gray-700">Time Resepsi:</label>
+                                    <input type="time" id="timeResepsi" name="timeResepsi" required
+                                        class="w-full p-3 border border-gray-300 rounded-md">
+                                </div>
+
+                                <div>
+                                    <label for="locationResepsi" class="block text-gray-700">Location Resepsi:</label>
+                                    <input type="text" id="locationResepsi" name="locationResepsi" required
+                                        class="w-full p-3 border border-gray-300 rounded-md">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pengantin Card -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold mb-4">Pengantin</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="groomName" class="block text-gray-700">Pengantin Laki-laki:</label>
+                            <input type="text" id="groomName" name="groomName" required
+                                class="w-full p-3 border border-gray-300 rounded-md">
+                        </div>
+
+                        <div>
+                            <label for="brideName" class="block text-gray-700">Pengantin Perempuan:</label>
+                            <input type="text" id="brideName" name="brideName" required
+                                class="w-full p-3 border border-gray-300 rounded-md">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="mt-6 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Send
+                    Invitation</button>
+            </form>
+        </div>
+    </main>
 </body>
 
 </html>
