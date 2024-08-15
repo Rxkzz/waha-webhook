@@ -35,6 +35,27 @@
             padding: 10px;
             gap: 10px;
         }
+
+         .status-icon {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: gray; /* Default color */
+            margin-left: 5px;
+        }
+
+        .status-icon.sent {
+            background-color: #a0e75a; /* Hijau untuk terkirim */
+        }
+
+        .status-icon.delivered {
+            background-color: #4a90e2; /* Biru untuk terkirim dan diterima */
+        }
+
+        .status-icon.read {
+            background-color: #4a90e2; /* Biru untuk dibaca */
+        }
     </style>
 </head>
 
@@ -111,73 +132,160 @@
                 <div id="chatMessages" class="chat-message-container">
                     <!-- Message details will be shown here -->
                 </div>
+
+                <div id="replySection" class="mt-4 flex items-center">
+                    <input type="text" id="replyInput" placeholder="Type your message..."
+                        class="flex-grow p-2 rounded-lg border border-gray-300">
+                    <button id="sendButton" class="ml-2 p-2 bg-green-700 text-white rounded-lg">Send</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const numbersSelect = document.getElementById('phoneNumbers');
-            const chatRoom = document.getElementById('chatMessages');
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const numbersSelect = document.getElementById('phoneNumbers');
+        const chatRoom = document.getElementById('chatMessages');
+        const replyInput = document.getElementById('replyInput');
+        const sendButton = document.getElementById('sendButton');
 
-            // Fetch numbers from server
-            fetch('/get-numbers')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    numbersSelect.innerHTML = ''; // Clear previous options
-                    data.forEach(number => {
-                        const numberDiv = document.createElement('div');
-                        numberDiv.className = 'cursor-pointer p-2 rounded-lg hover:bg-green-700';
-                        numberDiv.textContent = number.number; // Assumes the JSON has a 'number' property
-                        numberDiv.onclick = () => {
-                            fetch(`/chat-room/${encodeURIComponent(number.number)}`)
-                                .then(response => {
-                                    if (!response.ok) {
-                                        throw new Error('Network response was not ok');
+        let selectedNumber = null;
+
+        // Fetch numbers from server
+        fetch('/get-numbers')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                numbersSelect.innerHTML = ''; // Clear previous options
+                data.forEach(number => {
+                    const numberDiv = document.createElement('div');
+                    numberDiv.className = 'cursor-pointer p-2 rounded-lg hover:bg-green-700';
+                    numberDiv.textContent = number.number; // Assumes the JSON has a 'number' property
+                    numberDiv.onclick = () => {
+                        selectedNumber = number.number; // Set the selected number
+                        fetch(`/chat-room/${encodeURIComponent(number.number)}`)
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Network response was not ok');
+                                }
+                                return response.json();
+                            })
+                            .then(data => {
+                                chatRoom.innerHTML = ''; // Clear previous messages
+                                data.forEach(message => {
+                                    const messageDiv = document.createElement('div');
+
+                                    // Add class based on message status
+                                    messageDiv.classList.add('message');
+                                    if (message.status.toLowerCase() === 'sent') {
+                                        messageDiv.classList.add('sent');
+                                    } else {
+                                        messageDiv.classList.add('received');
                                     }
-                                    return response.json();
-                                })
-                                .then(data => {
-                                    console.log('Fetched data:', data); // Check the data format here
-                                    chatRoom.innerHTML = ''; // Clear previous messages
-                                    data.forEach(message => {
-                                        console.log('Processing message:', message); // Check each message
-                                        const messageDiv = document.createElement('div');
 
-                                        // Menambahkan kelas berdasarkan status pesan
-                                        messageDiv.classList.add('message');
-                                        if (message.status.toLowerCase() === 'sent') {
-                                            messageDiv.classList.add('sent'); // Menambahkan kelas 'sent' untuk pesan terkirim
-                                        } else {
-                                            messageDiv.classList.add('received'); // Menambahkan kelas 'received' untuk pesan diterima
-                                        }
-
-                                        // Menampilkan pesan dengan posisi dan latar belakang yang sesuai
-                                        messageDiv.innerHTML = `
-                                         <p><strong>${message.type === 'sent' ? 'You' : 'Recipient'}:</strong> ${message.sender_id}</p>
-                                         <p><strong>Message:</strong> ${message.message_body}</p>
-                                          <p><strong>Status:</strong> ${message.status}</p>
-                                             `;
-                                        chatRoom.appendChild(messageDiv);
+                                    const timestamp = new Date(message.timestamp);
+                                    const formattedTimestamp = timestamp.toLocaleString('id-ID', {
+                                        day: 'numeric',
+                                        month: 'long',
+                                        year: 'numeric',
+                                        hour: 'numeric',
+                                        minute: 'numeric',
+                                        hour12: true
                                     });
 
-                                })
-                                .catch(error => {
-                                    console.error('Error fetching chat room messages:', error);
-                                    chatRoom.innerHTML = '<p>Error fetching chat room messages. Please try again later.</p>';
+                                    // Display message with appropriate position and background
+                                    messageDiv.innerHTML = `
+                                        <p><strong>${message.type === 'sent' ? 'You' : 'Recipient'}:</strong> ${message.sender_id}</p>
+                                        <p><strong>Message:</strong> ${message.message_body}</p>
+                                        <p><strong>Status:</strong> ${message.status}</p>
+                                        <p class="text-gray-500 text-xs">${formattedTimestamp}</p>
+                                    `;
+                                    chatRoom.appendChild(messageDiv);
                                 });
-                        };
-                        numbersSelect.appendChild(numberDiv);
+                            })
+                            .catch(error => {
+                                console.error('Error fetching chat room messages:', error);
+                                chatRoom.innerHTML = '<p>Error fetching chat room messages. Please try again later.</p>';
+                            });
+                    };
+                    numbersSelect.appendChild(numberDiv);
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching numbers:', error);
+            });
+
+        // Function to send a message
+        sendButton.addEventListener('click', () => {
+            const message = replyInput.value.trim();
+
+            if (!message) {
+                alert('Please enter a message.');
+                return;
+            }
+
+            if (!selectedNumber) {
+                alert('Please select a number to send a message.');
+                return;
+            }
+
+             fetch('/send-message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    chatId: selectedNumber,
+                    text: message
+                })
+            })
+                .then(response => {
+                    // Check if response is JSON
+                    const contentType = response.headers.get('Content-Type');
+                    if (contentType && contentType.includes('application/json')) {
+                        return response.json();
+                    } else {
+                        return response.text(); // Handle as text if not JSON
+                    }
+                })
+                .then(data => {
+                    if (typeof data === 'string') {
+                        console.error('Error response:', data);
+                        alert('Error sending message. Please try again later.');
+                        return;
+                    }
+
+                    const messageDiv = document.createElement('div');
+                    messageDiv.classList.add('message', 'sent');
+
+                    const timestamp = new Date();
+                    const formattedTimestamp = timestamp.toLocaleString('id-ID', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: 'numeric',
+                        hour12: true
                     });
+
+                    messageDiv.innerHTML = `
+        <p><strong>You:</strong></p>
+        <p><strong>Message:</strong> ${message}</p>
+        <p class="text-gray-500 text-xs">${formattedTimestamp}</p>
+    `;
+                    chatRoom.appendChild(messageDiv);
+
+                    replyInput.value = ''; // Clear input after sending message
                 })
                 .catch(error => {
-                    console.error('Error fetching numbers:', error);
+                    console.error('Error sending message:', error);
+                    alert('Error sending message. Please try again later.');
                 });
+
         });
 
         function filterPhoneNumbers() {
@@ -193,7 +301,12 @@
                 }
             });
         }
-    </script>
+
+        // Attach the filter function to the search box
+        document.getElementById('searchBox').addEventListener('input', filterPhoneNumbers);
+    });
+</script>
+
 </body>
 
 </html>

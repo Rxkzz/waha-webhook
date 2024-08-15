@@ -6,6 +6,7 @@ const sequelize = require('./config/database'); // Import Sequelize instance
 
 const app = express();
 const port = 5000;
+app.use(express.json());
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -60,6 +61,30 @@ const sendText = async (chatId, text) => {
     throw error;
   }
 };
+
+// Rute untuk mengirim pesan melalui WAHA
+app.post('/send-message', async (req, res) => {
+  const { chatId, text } = req.body;
+
+  try {
+    const result = await sendText(chatId, text);
+    res.json({ status: 'success', data: result });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+
+app.post('/send', (req, res) => {
+    // Extract message details from the request body
+    const { chatId, text } = req.body;
+
+    // Handle sending message logic here
+    console.log(`Sending message to ${chatId}: ${text}`);
+
+    // Respond with success message
+    res.json({ status: 'success', message: 'Message sent' });
+});
 
 app.get('/chat-room/:number', async (req, res) => {
   const number = req.params.number;
