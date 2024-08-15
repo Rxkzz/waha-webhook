@@ -15,24 +15,20 @@
             word-wrap: break-word;
         }
 
-        .sent {
-            background-color: #4CAF50;
-            align-self: flex-end;
-            text-align: right;
-            color: white;
-            margin-left: auto;
-            /* Ensures it stays on the right side */
-        }
+        .message.sent {
+    background-color: #a0e75a; /* Warna hijau untuk pesan terkirim */
+    align-self: flex-end; /* Pindahkan pesan ke kanan */
+    text-align: right;
+}
 
-        .received {
-            background-color: #f1f8e9;
-            align-self: flex-start;
-            text-align: left;
-            color: black;
-            margin-right: auto;
-            /* Ensures it stays on the left side */
-        }
+.message.received {
+    background-color: #b6b1b1; /* Warna default untuk pesan diterima */
+    align-self: flex-start; /* Pindahkan pesan ke kiri */
+    text-align: left;
+}
 
+
+  
         .chat-message-container {
             display: flex;
             flex-direction: column;
@@ -152,14 +148,24 @@
                                     data.forEach(message => {
                                         console.log('Processing message:', message); // Check each message
                                         const messageDiv = document.createElement('div');
-                                        messageDiv.classList.add('message', message.type); // Add class based on message type
+
+                                        // Menambahkan kelas berdasarkan status pesan
+                                        messageDiv.classList.add('message');
+                                        if (message.status.toLowerCase() === 'sent') {
+                                            messageDiv.classList.add('sent'); // Menambahkan kelas 'sent' untuk pesan terkirim
+                                        } else {
+                                            messageDiv.classList.add('received'); // Menambahkan kelas 'received' untuk pesan diterima
+                                        }
+
+                                        // Menampilkan pesan dengan posisi dan latar belakang yang sesuai
                                         messageDiv.innerHTML = `
-                                            <p><strong>${message.type === 'sent' ? 'Sender' : 'Recipient'}:</strong> ${message.sender_id}</p>
-                                            <p><strong>Message:</strong> ${message.message_body}</p>
-                                            <p><strong>Status:</strong> ${message.status}</p>
-                                        `;
+                                         <p><strong>${message.type === 'sent' ? 'You' : 'Recipient'}:</strong> ${message.sender_id}</p>
+                                         <p><strong>Message:</strong> ${message.message_body}</p>
+                                          <p><strong>Status:</strong> ${message.status}</p>
+                                             `;
                                         chatRoom.appendChild(messageDiv);
                                     });
+
                                 })
                                 .catch(error => {
                                     console.error('Error fetching chat room messages:', error);
