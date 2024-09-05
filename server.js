@@ -37,6 +37,7 @@ let awaitingGuests = false;
 let awaitingAccommodation = false;
 let awaitingResetConfirmation = false;
 let globalGuests = 0; // Add this to manage the number of guests
+let globaltemplate = '';
 
 
 const sendText = async (chatId, text) => {
@@ -222,7 +223,7 @@ app.post('/send-invitation', async (req, res) => {
   globalDateResepsi = dateResepsi;
   globalTimeResepsi = timeResepsi;
   globalLocationResepsi = locationResepsi;
-
+  globaltemplate = template;
   let invitationText;
   if (template === 'english') {
    invitationText = `
@@ -290,8 +291,7 @@ app.get('/message', (req, res) => {
 
 app.post('/webhook', async (req, res) => {
   const webhookData = req.body;
-  const { template } = req.body;  // Mengambil nilai template dari request body
-
+ 
   console.log('Received message webhook:', webhookData);
   console.log('Payload:', JSON.stringify(webhookData, null, 2));
 
@@ -306,8 +306,8 @@ app.post('/webhook', async (req, res) => {
   let finalMessage = ''; // Declare finalMessage at the top
   let finalMessage2 = ''; // Declare finalMessage2 at the top
 
-  // Pastikan template terdeteksi dan fallback default
-  const selectedTemplate = template === 'english' ? 'english' : 'indonesian';
+  const template = globaltemplate;
+ 
 
   // Save received message
   try {
@@ -341,23 +341,50 @@ app.post('/webhook', async (req, res) => {
 
       if (rows.length > 0) {
         const existingRSVP = rows[0];
-        replyText = `
-          Anda sudah terdaftar dengan rincian sebagai berikut:
-          Kehadiran : Tidak Hadir
-          Nama Pengantin: ${existingRSVP.groom_name} & ${existingRSVP.bride_name}
-          Tanggal Akad: ${existingRSVP.date_akad}
-          Waktu Akad: ${existingRSVP.time_akad}
-          Lokasi Akad: ${existingRSVP.location_akad}
-          Tanggal Resepsi: ${existingRSVP.date_resepsi}
-          Waktu Resepsi: ${existingRSVP.time_resepsi}
-          Lokasi Resepsi: ${existingRSVP.location_resepsi}
+        replyText = template === 'english' 
+          ? `You are already registered with the following details:
+             Attendance: Not Attending
+             Groom's Name: ${existingRSVP.groom_name} & Bride's Name: ${existingRSVP.bride_name}
+             Wedding Date: ${existingRSVP.date_akad}
+             Wedding Time: ${existingRSVP.time_akad}
+             Reception Date: ${existingRSVP.date_resepsi}
+             Reception Time: ${existingRSVP.time_resepsi}
+             
+             Do you want to reset this registration? Reply with *RESET* if yes.`
+          : `Anda sudah terdaftar dengan rincian sebagai berikut:
+             Kehadiran: Tidak Hadir
+             Nama Pengantin: ${existingRSVP.groom_name} & ${existingRSVP.bride_name}
+             Tanggal Akad: ${existingRSVP.date_akad}
+             Waktu Akad: ${existingRSVP.time_akad}
+             Tanggal Resepsi: ${existingRSVP.date_resepsi}
+             Waktu Resepsi: ${existingRSVP.time_resepsi}
           
-          Apakah Anda ingin mereset pendaftaran ini? Balas dengan *RESET* jika ya.
+            Apakah Anda ingin mereset pendaftaran ini? Balas dengan *RESET* jika ya.
         `;
         awaitingResetConfirmation = true;
       } else {
-        replyText = `
-          Hii,
+        replyText = template === 'english'
+        ?`Hi,  
+        With this invitation, I would like to invite Mr./Mrs./Sir to attend our wedding ceremony.  
+        *${globalGroomName} & ${globalBrideName}*  
+        The Akad (Islamic marriage contract) will be held on  
+        *Day and Date: ${globalDateAkad}*  
+        *Time: ${globalTimeAkad}.*  
+        *Location: ${globalLocationAkad}*  
+
+        The Reception will be held on  
+        *Day and Date: ${globalDateResepsi}*  
+        *Time: ${globalTimeResepsi}.*  
+        *Location: ${globalLocationResepsi}*  
+
+        This is an invitation from us who are in happiness.  
+        We hope that Mr./Mrs./Sir will be able to attend our event.  
+
+        Will you attend? Reply with  
+        *Attend*  
+        *Not Attend* 
+        `
+        : `Hii,
           Bersama undangan ini, saya turut mengundang Bapak/Ibu/Saudara untuk hadir acara pernikahan kami
           *${globalGroomName} & ${globalBrideName}*
           Akad akan di gelar pada
@@ -375,8 +402,7 @@ app.post('/webhook', async (req, res) => {
 
           Apakah Anda akan hadir? Balas dengan
           *Hadir*
-          *Tidak Hadir*
-        `;
+          *Tidak Hadir*`;
         awaitingGuests = false;
         awaitingAccommodation = false;
         awaitingResetConfirmation = false;
@@ -405,26 +431,42 @@ app.post('/webhook', async (req, res) => {
         );
       });
 
-      replyText = 'Pendaftaran Anda telah direset. Silakan mulai dari awal balas dengan *RSVP*';
+      replyText = template === 'english'  
+      ?`Your registration has been reset. Please start over by replying with *RSVP*.`
+      :'Pendaftaran Anda telah direset. Silakan mulai dari awal balas dengan *RSVP*';
       awaitingResetConfirmation = false;
       awaitingGuests = false;
       awaitingAccommodation = false;
     } catch (error) {
       console.error('Error resetting RSVP data:', error);
-      replyText = 'Gagal mereset data. Mohon coba lagi nanti.';
+      replyText = template === 'english'
+       ?`Failed to reset the data. Please try again later.`
+       :'Gagal mereset data. Mohon coba lagi nanti.';
     }
-  } else if (body.toLowerCase() === 'hadir') {
+  } else if (body.toLowerCase() === 'hadir' || body.toLowerCase() === 'attend') {
     awaitingGuests = true;
     awaitingAccommodation = false;
     awaitingResetConfirmation = false;
-    replyText = `
+    replyText = template === 'english'
+    ? `Thank you for your confirmation!  
+      Your invitation is valid for 4 people\n  
+      How many people will be attending? (example: *2*)`
+    :`
       Terima kasih atas konfirmasinya!
       Undangan anda berlaku 4 orang\n
       Berapa orang yang akan hadir? (contoh: *2*)
     `;
-  } else if (body.toLowerCase() === 'tidak hadir') {
-    finalMessage2 = 
-     `Kehadiran : Tidak hadir
+  } else if (body.toLowerCase() === 'tidak hadir' || body.toLowerCase() === 'not attend') {
+    finalMessage2 = template === 'english'
+     ?`Attendance: Not Attending  
+      Groom's Name: ${globalGroomName} & Bride's Name: ${globalBrideName}  
+      Akad Date: ${globalDateAkad}  
+      Akad Time: ${globalTimeAkad}  
+      Akad Location: ${globalLocationAkad}  
+      Reception Date: ${globalDateResepsi}  
+      Reception Time: ${globalTimeResepsi}  
+      Reception Location: ${globalLocationResepsi}`
+     :`Kehadiran : Tidak hadir
       Nama Pengantin: ${globalGroomName} & ${globalBrideName}
       Tanggal Akad: ${globalDateAkad}
       Waktu Akad: ${globalTimeAkad}
@@ -433,7 +475,13 @@ app.post('/webhook', async (req, res) => {
       Waktu Resepsi: ${globalTimeResepsi}
       Lokasi Resepsi: ${globalLocationResepsi}`;
 
-    replyText = `
+    replyText = template === "english"
+    ?`Thank you for the information.  
+      If there are any changes, please inform us again by replying with *RESET*  
+
+      Here are the event details:  
+      ${finalMessage2}  `
+    :`
       Terima kasih atas informasinya.
       Jika ada perubahan, silakan informasikan kembali dengan membalas *RESET*
       
@@ -479,23 +527,34 @@ app.post('/webhook', async (req, res) => {
       });
     } catch (error) {
       console.error('Error saving RSVP data to database:', error);
-      replyText = 'Terjadi kesalahan saat menyimpan data RSVP.';
+      replyText = template === 'english'
+      ?`An error occurred while saving the RSVP data.`
+      :'Terjadi kesalahan saat menyimpan data RSVP.';
     }
   } else if (awaitingGuests && body.toLowerCase().match(/^\d+$/)) {
     const guests = parseInt(body);
 
     if (guests > 4) {
-      replyText = 'Mohon maaf, jumlah yang Anda kirimkan melebihi kuota. Mohon ulangi lagi.';
+      replyText = template === 'english' 
+      ?`Sorry, the number you provided exceeds the quota. Please try again.`
+      :'Mohon maaf, jumlah yang Anda kirimkan melebihi kuota. Mohon ulangi lagi.';
     } else {
       globalGuests = guests;
       awaitingGuests = false;
       awaitingAccommodation = true;
       awaitingResetConfirmation = false;
-      replyText = `
+      replyText = template === 'english'
+      ?` You will receive accommodation facilities. For how many nights will you be staying at the Hotel Malang?  
+        1. 1 night, check-in on 16 January 2024, check-out on 17 January 2024  
+        2. 1 night, check-in on 15 January 2024, check-out on 16 January 2024  
+        3. No hotel
+        (example: *2*)`
+      :`
         Anda akan mendapatkan fasilitas penginapan untuk akomodasi. Hotel Malang berapa lama Anda akan menginap?
         1. 1 malam check in di 16 Januari 2024, check out di 17 Januari 2024
         2. 1 malam check in di 15 Januari 2024, check out di 16 Januari 2024
         3. Tanpa hotel
+        (contoh: *2*)
       `;
     }
   } else if (awaitingAccommodation && body.toLowerCase().match(/^\d+$/)) {
@@ -503,17 +562,37 @@ app.post('/webhook', async (req, res) => {
     let accommodationText = '';
 
     if (accommodationOption === 1) {
-      accommodationText = '1 malam check-in di 16 Januari 2024, check-out di 17 Januari 2024';
+      accommodationText = template === 'english'
+        ? '1 night check-in on January 16, 2024, check-out on January 17, 2024'
+        : '1 malam check-in di 16 Januari 2024, check-out di 17 Januari 2024';
     } else if (accommodationOption === 2) {
-      accommodationText = '1 malam check-in di 15 Januari 2024, check-out di 16 Januari 2024';
+      accommodationText = template === 'english'
+        ? '1 night check-in on January 15, 2024, check-out on January 16, 2024'
+        : '1 malam check-in di 15 Januari 2024, check-out di 16 Januari 2024';
     } else if (accommodationOption === 3) {
-      accommodationText = 'Tanpa hotel';
+      accommodationText = template === 'english'
+        ? 'No hotel required'
+        : 'Tanpa hotel';
     } else {
-      replyText = 'Pilihan tidak valid. Mohon pilih antara 1, 2, atau 3.';
+      replyText = template === 'english'
+      ?`Invalid option. Please choose 1, 2, or 3.`
+      :'Pilihan tidak valid. Mohon pilih antara 1, 2, atau 3.';
       return res.status(200).send(replyText);
     }
 
-    finalMessage = `
+    finalMessage = template === 'english'
+    ?`Thank you for confirming your attendance!  
+      Registration Details:  
+      Couple's Name: ${globalGroomName} & ${globalBrideName}  
+      Akad Date: ${globalDateAkad}  
+      Akad Time: ${globalTimeAkad}  
+      Akad Location: ${globalLocationAkad}  
+      Reception Date: ${globalDateResepsi}  
+      Reception Time: ${globalTimeResepsi}  
+      Reception Location: ${globalLocationResepsi}  
+      Number of Guests: ${globalGuests}  
+      Accommodation: ${accommodationText}  `
+    :`
       Terima kasih telah mengonfirmasi kehadiran Anda!
       Detail Pendaftaran:
       Nama Pengantin: ${globalGroomName} & ${globalBrideName}
@@ -561,7 +640,12 @@ app.post('/webhook', async (req, res) => {
             transaction,
           }
         );
-         replyText = `Terimakasih telah melengkapi RSVP. Kami menunggu kehadiran Anda.
+         replyText = template === 'english'
+         ?`Thank you for completing the RSVP. We look forward to your attendance.  
+        Your registration details:  
+
+        ${finalMessage} `
+         :`Terimakasih telah melengkapi RSVP. Kami menunggu kehadiran Anda.
         Daftar kehadiran Anda:
 
         ${finalMessage}
@@ -571,7 +655,9 @@ app.post('/webhook', async (req, res) => {
       });
     } catch (error) {
       console.error('Error saving RSVP data to database:', error);
-      replyText = 'Terjadi kesalahan saat menyimpan data RSVP.';
+      replyText = template === 'english' 
+      ?`An error occurred while saving the RSVP data.`
+      :'Terjadi kesalahan saat menyimpan data RSVP.';
     }
   } 
 
