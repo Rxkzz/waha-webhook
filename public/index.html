@@ -52,6 +52,16 @@
         <div class="container mx-auto max-w-screen-lg bg-white rounded-lg shadow-md p-6 flex flex-col space-y-6">
             <h1 class="text-2xl font-bold text-center mb-6">Send Wedding Invitation</h1>
             <form action="/send-invitation" method="post" class="flex flex-col space-y-6">
+                  <!-- Language Selection -->
+                  <div class="flex flex-col space-y-4">
+                    <label for="template" class="block text-gray-700">Select Template:</label>
+                    <select id="template" name="template" class="w-full p-3 border border-gray-300 rounded-md">
+                        <option value="">Select Template</option>
+                        <option value="english">English</option>
+                        <option value="indonesian">Indonesian</option>
+                    </select>
+                </div>
+
                 <div class="flex flex-wrap -mx-4">
                     <!-- Chat ID Card -->
                     <div class="w-full md:w-1/3 px-4 mb-4">

@@ -202,11 +202,16 @@ app.get('/sent-messages', async (req, res) => {
 
 
 
-
-
 // Endpoint untuk mengirim undangan
 app.post('/send-invitation', async (req, res) => {
-  const { chatId, name, groomName, brideName, dateAkad, timeAkad, locationAkad, dateResepsi, timeResepsi, locationResepsi } = req.body;
+  const { chatId, name, groomName, brideName, dateAkad, timeAkad, locationAkad, dateResepsi, timeResepsi, locationResepsi, template } = req.body;
+
+  console.log('Template received:', template);
+
+  // Tambahkan pengecekan untuk template
+  if (!template) {
+    return res.status(400).send('Template is required');
+}
 
   // Simpan data ke variabel global (jika diperlukan)
   globalGroomName = groomName;
@@ -218,8 +223,24 @@ app.post('/send-invitation', async (req, res) => {
   globalTimeResepsi = timeResepsi;
   globalLocationResepsi = locationResepsi;
 
-  // Construct the invitation message
-  const invitationText = `
+  let invitationText;
+  if (template === 'english') {
+   invitationText = `
+    Hii,
+    With this invitation, I would like to invite
+    Mr./Mrs./Sisters to attend our wedding ceremony
+    ${groomName} & ${brideName}
+    The wedding ceremony will be held on
+    Day and Date: ${dateAkad} 
+    At: ${timeAkad}.
+    Location: ${locationAkad}
+    Thus the invitation from us who are happy.
+    We hope that you will be pleased to attend our event.
+    You can confirm your attendance by invitation
+    Or type “RSVP”
+  `;
+} else {
+  invitationText = `
     Hii,
     Bersama undangan ini, saya turut mengundang
     Bapak/Ibu/Saudara untuk hadir acara pernikahan kami
@@ -232,7 +253,9 @@ app.post('/send-invitation', async (req, res) => {
     Kami berharap Bapak/Ibu/Saudara berkenan untuk hadir di acara kami ini.
     Anda bisa konfirmasi kehadiran undangan
     Atau ketik "RSVP"
-  `;
+`;
+}
+console.log('Invitation Text:', invitationText);
 
   try {
     // Simpan pesan undangan ke database
@@ -267,6 +290,8 @@ app.get('/message', (req, res) => {
 
 app.post('/webhook', async (req, res) => {
   const webhookData = req.body;
+  const { template } = req.body;  // Mengambil nilai template dari request body
+
   console.log('Received message webhook:', webhookData);
   console.log('Payload:', JSON.stringify(webhookData, null, 2));
 
@@ -280,6 +305,9 @@ app.post('/webhook', async (req, res) => {
   let replyText = '';
   let finalMessage = ''; // Declare finalMessage at the top
   let finalMessage2 = ''; // Declare finalMessage2 at the top
+
+  // Pastikan template terdeteksi dan fallback default
+  const selectedTemplate = template === 'english' ? 'english' : 'indonesian';
 
   // Save received message
   try {
@@ -295,9 +323,13 @@ app.post('/webhook', async (req, res) => {
   }
 
   if (body.toLowerCase().includes('hello')) {
-    replyText = 'Hello! How can I assist you today?';
+    replyText = template === 'english'
+      ? 'Hello! How can I assist you today?'
+      : 'Halo! Bagaimana saya bisa membantu Anda hari ini?';
   } else if (body.toLowerCase().includes('help')) {
-    replyText = 'Here are some commands you can use: "rsvp"';
+    replyText = template === 'english'
+      ? 'Here are some commands you can use: "rsvp"'
+      : 'Berikut beberapa perintah yang dapat Anda gunakan: "rsvp"';
   } else if (body.toLowerCase().includes('rsvp')) {
     try {
       const [rows] = await sequelize.query(
