@@ -44,7 +44,7 @@ let globaltemplate = '';
 
 
 const sendText = async (chatId, text) => {
-  const myChatId = '6283129701774@c.us'; // Ganti dengan nomor WhatsApp Anda
+  
   try {
     const response = await axios.post(
       
@@ -67,7 +67,7 @@ const sendText = async (chatId, text) => {
     throw error;
   }
 };
-
+const myChatId = '6283129701774@c.us'; // Ganti dengan nomor WhatsApp Anda
 // Rute untuk mengirim pesan melalui WAHA
 app.post('/send-message', async (req, res) => {
   const { chatId, text } = req.body;
@@ -96,7 +96,7 @@ app.get('/chat-room/:number', async (req, res) => {
   const number = req.params.number;
   try {
     const [rows] = await sequelize.query(
-      `SELECT * FROM rsvp_message WHERE sender_id = ? OR recipient_id = ?`,
+      `SELECT * FROM messaging WHERE sender_number = ? OR recipient_number = ?`,
       {
         replacements: [number, number],
       }
@@ -111,7 +111,7 @@ app.get('/chat-room/:number', async (req, res) => {
 // Endpoint untuk mendapatkan semua nomor
 app.get('/numbers', async (req, res) => {
   try {
-    const [rows] = await sequelize.query('SELECT DISTINCT sender_id FROM rsvp_message');
+    const [rows] = await sequelize.query('SELECT DISTINCT sender_number FROM messaging');
     res.json(rows.map(row => row.sender_id));
   } catch (error) {
     console.error('Error fetching numbers:', error);
@@ -122,7 +122,7 @@ app.get('/numbers', async (req, res) => {
 app.get('/get-numbers', async (req, res) => {
   try {
     const [rows] = await sequelize.query(
-      `SELECT DISTINCT sender_id AS number FROM rsvp_message WHERE sender_id IS NOT NULL`
+      `SELECT DISTINCT sender_number AS number FROM messaging WHERE sender_number IS NOT NULL`
     );
     res.json(rows);
   } catch (error) {
@@ -137,7 +137,7 @@ app.get('/received-messages/:number', async (req, res) => {
   const { number } = req.params;
   try {
     const [rows] = await sequelize.query(
-      `SELECT * FROM rsvp_message WHERE sender_id = ? AND status = 'Received'`,
+      `SELECT * FROM messaging WHERE sender_number = ? AND status = 'Received'`,
       {
         replacements: [number],
       }
@@ -158,7 +158,7 @@ app.get('/messages/:phoneNumber', async (req, res) => {
 
   try {
     const [rows] = await sequelize.query(
-      `SELECT * FROM rsvp_message WHERE sender_id = ?`,
+      `SELECT * FROM messaging WHERE sender_number = ?`,
       {
         replacements: [phoneNumber],
       }
@@ -178,7 +178,7 @@ app.get('/messages/:phoneNumber', async (req, res) => {
 app.get('/api/phoneNumbers', async (req, res) => {
   try {
     const [rows] = await sequelize.query(
-      `SELECT DISTINCT sender_id FROM rsvp_message`
+      `SELECT DISTINCT sender_number FROM messaging`
     );
     
     res.json(rows);
@@ -194,7 +194,7 @@ app.get('/api/phoneNumbers', async (req, res) => {
 app.get('/sent-messages', async (req, res) => {
   try {
     const [rows] = await sequelize.query(
-      `SELECT * FROM rsvp_message WHERE sender_id = ? AND (status = 'Sent' OR status = 'Delivered' OR status = 'Read')`,
+      `SELECT * FROM messaging WHERE sender_number = ? AND (status = 'Sent' OR status = 'Delivered' OR status = 'Read')`,
       {
         replacements: [yourWhatsAppId],
       }
@@ -320,7 +320,9 @@ app.get('/message', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'message.html'));
 });
 
-yourNumber = '6283129701774@c.us';
+
+
+
 app.post('/webhook', async (req, res) => {
   const webhookData= req.body;
  
@@ -334,11 +336,11 @@ app.post('/webhook', async (req, res) => {
     }
 
   const { payload } = webhookData;
-   console.log('Payload:', payload);
+  console.log('Payload:', payload);
+  
+  const { id, from, to, body, timestamp, hasMedia } = payload;
+  
 
-  const { id, from, body, isGroupMsg } = webhookData.payload;
-  
-  
   // Process phone numbers
   const processPhoneNumber = (number) => {
     if (number.endsWith('@c.us')) {
@@ -355,17 +357,26 @@ app.post('/webhook', async (req, res) => {
 
   const template = globaltemplate;
 
-   const sender_number = processPhoneNumber(payload.to); // Nomor pengirim
-    const recipient_number = processPhoneNumber(payload.from); // Nomor penerima
+   const sender_number = processPhoneNumber(payload.from); // Nomor pengirim
+  const recipient_number = processPhoneNumber(payload.to); // Nomor penerima
+  const yourNumber = '083129701774'
+  
 
     console.log('Sender Number:', sender_number);
   console.log('Recipient Number:', recipient_number);
   
-     if (payload.from === yourNumber) {
-      console.log('Message is from the bot itself. Ignoring.');
-      return res.status(200).send('Message ignored');
-     }
   
+      let status = 'Received'; // Default status
+
+  // Determine message status based on sender_number
+  if (sender_number === yourNumber) {
+    console.log('Message is from the bot itself.');
+    status = 'Sent'; // Bot sends the message
+  } else {
+    console.log('Message is from another user.');
+    // Keep status as 'Received' or adjust according to your needs
+  }
+
 
   // Save received message
   try {
@@ -377,14 +388,14 @@ app.post('/webhook', async (req, res) => {
           null, // Or a unique ID if you have one
           new Date(),
           'text',
-          'Received',
+          status,
           null,
           null,
           null,
           null,
           null,
-          recipient_number,
-          sender_number, // Change as per your sender logic
+          sender_number,
+          recipient_number, // Change as per your sender logic
           body
         ],
       }

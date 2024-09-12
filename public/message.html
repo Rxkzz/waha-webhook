@@ -199,8 +199,8 @@
 
                                     // Display message with appropriate position and background
                                     messageDiv.innerHTML = `
-                                        <p><strong>${message.type === 'sent' ? 'You' : 'Recipient'}:</strong> ${message.sender_id}</p>
-                                        <p><strong>Message:</strong> ${message.message_body}</p>
+                                        <p><strong>${message.type === 'sent' ? 'You' : 'Recipient'}:</strong> ${message.sender_number}</p>
+                                        <p><strong>Message:</strong> ${message.message}</p>
                                         <p><strong>Status:</strong> ${message.status}</p>
                                         <p class="text-gray-500 text-xs">${formattedTimestamp}</p>
                                     `;
