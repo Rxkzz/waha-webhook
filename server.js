@@ -2,9 +2,12 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
 const path = require('path');
-const sequelize = require('./config/database'); // Import Sequelize instance
+const sequelize = require('./config/database'); // Import Sequelize instance\
+const cors = require('cors');
+
 
 const app = express();
+app.use(cors());
 const port = 5000;
 app.use(express.json());
 
@@ -12,7 +15,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 const wahaApiUrl = 'http://localhost:3000'; // Ganti dengan URL WAHA API Anda
-const yourWhatsAppId = '6283129701774@c.us';
+const yourWhatsAppId = '083129701774';
 
 // Test database connection
 sequelize.authenticate()
@@ -41,8 +44,10 @@ let globaltemplate = '';
 
 
 const sendText = async (chatId, text) => {
+  const myChatId = '6283129701774@c.us'; // Ganti dengan nomor WhatsApp Anda
   try {
     const response = await axios.post(
+      
       `${wahaApiUrl}/api/sendText`,
       {
         chatId,
@@ -201,6 +206,14 @@ app.get('/sent-messages', async (req, res) => {
   }
 });
 
+// Function to format chatId
+const formatChatId = (chatId) => {
+  // Replace '62' with '08' at the start of the chatId
+  if (chatId.startsWith('62')) {
+    return '0' + chatId.substring(2);
+  }
+  return chatId; // Return the chatId as is if it doesn't start with '62'
+};
 
 
 // Endpoint untuk mengirim undangan
@@ -212,7 +225,11 @@ app.post('/send-invitation', async (req, res) => {
   // Tambahkan pengecekan untuk template
   if (!template) {
     return res.status(400).send('Template is required');
-}
+  }
+  
+  // Format chatId
+  const formattedChatId = formatChatId(chatId);
+
 
   // Simpan data ke variabel global (jika diperlukan)
   globalGroomName = groomName;
@@ -259,12 +276,26 @@ app.post('/send-invitation', async (req, res) => {
 console.log('Invitation Text:', invitationText);
 
   try {
+      const result = await sendText(chatId, invitationText);
     // Simpan pesan undangan ke database
     await sequelize.query(
-      `INSERT INTO rsvp_message (event_id, sender_id, recipient_id, message_body, status, is_sent)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       {
-        replacements: [null, yourWhatsAppId, chatId, invitationText, 'Sent', true],
+         replacements: [
+          null, // Assuming WAHA API returns a message ID
+          new Date(), // current date
+          'text',
+          'Sent',
+          new Date(),
+          null,
+          null,
+          null,
+          null,
+          yourWhatsAppId, // Change as per your sender logic
+          formattedChatId,
+          invitationText
+        ],
       }
     );
 
@@ -289,40 +320,85 @@ app.get('/message', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'message.html'));
 });
 
+yourNumber = '6283129701774@c.us';
 app.post('/webhook', async (req, res) => {
-  const webhookData = req.body;
+  const webhookData= req.body;
  
   console.log('Received message webhook:', webhookData);
   console.log('Payload:', JSON.stringify(webhookData, null, 2));
 
-  const { from, body, isGroupMsg } = webhookData.payload;
+    // Check if webhookData and payload are defined
+    if (!webhookData || !webhookData.payload) {
+      console.error('Webhook data or payload is missing');
+      return res.status(400).send('Invalid webhook data');
+    }
 
-  if (isGroupMsg || from === yourWhatsAppId) {
-    console.log('Message is from a group or from myself. No reply will be sent.');
-    return res.status(200).send('Message from a group or myself. No reply sent.');
-  }
+  const { payload } = webhookData;
+   console.log('Payload:', payload);
 
+  const { id, from, body, isGroupMsg } = webhookData.payload;
+  
+  
+  // Process phone numbers
+  const processPhoneNumber = (number) => {
+    if (number.endsWith('@c.us')) {
+      number = number.slice(0, -5); // Remove '@c.us' from the end
+    }
+    if (number.startsWith('62')) {
+      number = '0' + number.slice(2); // Replace '62' with '0'
+    }
+    return number;
+  };
   let replyText = '';
   let finalMessage = ''; // Declare finalMessage at the top
   let finalMessage2 = ''; // Declare finalMessage2 at the top
 
   const template = globaltemplate;
- 
+
+   const sender_number = processPhoneNumber(payload.to); // Nomor pengirim
+    const recipient_number = processPhoneNumber(payload.from); // Nomor penerima
+
+    console.log('Sender Number:', sender_number);
+  console.log('Recipient Number:', recipient_number);
+  
+     if (payload.from === yourNumber) {
+      console.log('Message is from the bot itself. Ignoring.');
+      return res.status(200).send('Message ignored');
+     }
+  
 
   // Save received message
   try {
     await sequelize.query(
-      `INSERT INTO rsvp_message (event_id, sender_id, recipient_id, message_body, status, is_sent)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       {
-        replacements: [null, from, yourWhatsAppId, body, 'Received', false],
+        replacements: [
+          null, // Or a unique ID if you have one
+          new Date(),
+          'text',
+          'Received',
+          null,
+          null,
+          null,
+          null,
+          null,
+          recipient_number,
+          sender_number, // Change as per your sender logic
+          body
+        ],
       }
     );
   } catch (error) {
     console.error('Error saving received message:', error);
   }
 
-  if (body.toLowerCase().includes('hello')) {
+  if (from === yourWhatsAppId) {
+    console.log('Message is from myself. No reply will be sent.');
+    return res.status(200).send('Message from myself. No reply sent.');
+  }
+
+  else if (body.toLowerCase().includes('hello')) {
     replyText = template === 'english'
       ? 'Hello! How can I assist you today?'
       : 'Halo! Bagaimana saya bisa membantu Anda hari ini?';
@@ -423,7 +499,7 @@ app.post('/webhook', async (req, res) => {
         );
 
         await sequelize.query(
-          `DELETE FROM rsvp_message WHERE sender_id = ?`,
+          `DELETE FROM messaging WHERE sender_number = ?`,
           {
             replacements: [from],
             transaction,
@@ -516,14 +592,29 @@ app.post('/webhook', async (req, res) => {
             transaction,
           }
         );
-
+        await sendText(recipient_number, replyText);
         await sequelize.query(
-          `INSERT INTO rsvp_message (event_id, sender_id, recipient_id, message_body, status, is_sent) VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           {
-            replacements: [null, from, yourWhatsAppId, finalMessage2, 'Sent', true],
+            replacements: [
+          null, // Or a unique ID if you have one
+          new Date(),
+          'text',
+          'Sent',
+          null,
+          null,
+          null,
+          null,
+          null,
+          sender_number,
+          recipient_number, // Change as per your sender logic
+          replyText
+        ],
             transaction,
           }
         );
+        res.status(200).send('Reply sent');
       });
     } catch (error) {
       console.error('Error saving RSVP data to database:', error);
@@ -634,9 +725,10 @@ app.post('/webhook', async (req, res) => {
         );
 
         await sequelize.query(
-          `INSERT INTO rsvp_message (event_id, sender_id, recipient_id, message_body, status, is_sent) VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           {
-            replacements: [null, from, yourWhatsAppId, finalMessage, 'Sent', true],
+            replacements:  [null, new Date(), 'text', 'Sent',null, null, null,null, null, sender_number, recipient_number, replyText],
             transaction,
           }
         );
@@ -667,17 +759,17 @@ app.post('/webhook', async (req, res) => {
     if (replyText) {
       await sendText(from, replyText);
       await sequelize.query(
-      `INSERT INTO rsvp_message (event_id, sender_id, recipient_id, message_body, status, is_sent)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+     `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       {
-        replacements: [null, yourWhatsAppId, from, replyText, 'Sent', true],
+        replacements: [null, new Date(), 'text', 'Sent',null, null, null,null, null, sender_number, recipient_number, replyText],
       }
     );
     }
-    res.status(200).send('Reply sent');
+    return res.status(200).send('Reply sent');
   } catch (error) {
     console.error('Error sending reply:', error);
-    res.status(500).send('Failed to send reply');
+    return res.status(500).send('Failed to send reply');
   }
 });
 
