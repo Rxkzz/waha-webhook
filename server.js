@@ -4,6 +4,8 @@ const axios = require('axios');
 const path = require('path');
 const sequelize = require('./config/database'); // Import Sequelize instance\
 const cors = require('cors');
+const redis = require('redis');
+const redisClient = redis.createClient(); // Membuat client Redis
 
 
 const app = express();
@@ -43,7 +45,16 @@ let globalGuests = 0; // Add this to manage the number of guests
 let globaltemplate = '';
 
 
+
 const sendText = async (chatId, text) => {
+   const waid = `6283129701774@c.us`; // Format nomor WhatsApp Anda
+
+  // Cek apakah nomor tujuan adalah nomor sendiri
+  if (chatId === waid) {
+    console.log('Message not sent. ChatId matches your own WhatsApp ID.');
+    return; // Hindari pengiriman pesan jika nomor sama dengan nomor sendiri
+  }
+
   
   try {
     const response = await axios.post(
@@ -60,6 +71,7 @@ const sendText = async (chatId, text) => {
         }
       }
     );
+    
     console.log('Message sent:', response.data);
     return response.data;
   } catch (error) {
@@ -79,6 +91,60 @@ app.post('/send-message', async (req, res) => {
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
+
+app.post('/send-whatsapp', async (req, res) => {
+  const { numbers, message } = req.body;
+
+  if (!numbers || !Array.isArray(numbers) || numbers.length === 0 || !message) {
+    return res.status(400).json({ error: 'Invalid request body' });
+  }
+
+  const results = [];
+
+  for (const number of numbers) {
+    try {
+      const chatId = `${number}@c.us`; // Format the WhatsApp number
+      const result = await sendText(chatId, message); // Use your sendText function to send the message
+      results.push({ number, status: 'success', result });
+    } catch (error) {
+      results.push({ number, status: 'error', error: error.message });
+    }
+  }
+
+  res.json({ results });
+});
+
+app.get('/attendance-status/:number', async (req, res) => {
+  const { number } = req.params;
+
+  try {
+    const [rows] = await sequelize.query(
+      `SELECT message FROM messaging WHERE sender_number = ? AND (message LIKE '%hadir%' OR message LIKE '%tidak hadir%')`,
+      {
+        replacements: [number],
+      }
+    );
+
+    if (rows.length > 0) {
+      const message = rows[0].message.toLowerCase();
+
+      let status = 'Unknown';
+      if (message.includes('hadir')) {
+        status = 'hadir';
+      } else if (message.includes('tidak hadir')) {
+        status = 'tidak hadir';
+      }
+
+      res.json({ kehadiran: status });
+    } else {
+      res.status(404).json({ kehadiran: 'unknown' });
+    }
+  } catch (error) {
+    console.error('Error fetching attendance status:', error);
+    res.status(500).send('Failed to fetch attendance status');
+  }
+});
+
 
 
 app.post('/send', (req, res) => {
@@ -216,20 +282,10 @@ const formatChatId = (chatId) => {
 };
 
 
+
 // Endpoint untuk mengirim undangan
 app.post('/send-invitation', async (req, res) => {
-  const { chatId, name, groomName, brideName, dateAkad, timeAkad, locationAkad, dateResepsi, timeResepsi, locationResepsi, template } = req.body;
-
-  console.log('Template received:', template);
-
-  // Tambahkan pengecekan untuk template
-  if (!template) {
-    return res.status(400).send('Template is required');
-  }
-  
-  // Format chatId
-  const formattedChatId = formatChatId(chatId);
-
+  const { chatId, name, groomName, brideName, dateAkad, timeAkad, locationAkad, dateResepsi, timeResepsi, locationResepsi } = req.body;
 
   // Simpan data ke variabel global (jika diperlukan)
   globalGroomName = groomName;
@@ -240,25 +296,9 @@ app.post('/send-invitation', async (req, res) => {
   globalDateResepsi = dateResepsi;
   globalTimeResepsi = timeResepsi;
   globalLocationResepsi = locationResepsi;
-  globaltemplate = template;
-  let invitationText;
-  if (template === 'english') {
-   invitationText = `
-    Hii,
-    With this invitation, I would like to invite
-    Mr./Mrs./Sisters to attend our wedding ceremony
-    ${groomName} & ${brideName}
-    The wedding ceremony will be held on
-    Day and Date: ${dateAkad} 
-    At: ${timeAkad}.
-    Location: ${locationAkad}
-    Thus the invitation from us who are happy.
-    We hope that you will be pleased to attend our event.
-    You can confirm your attendance by invitation
-    Or type “RSVP”
-  `;
-} else {
-  invitationText = `
+
+  // Construct the invitation message
+  const invitationText = `
     Hii,
     Bersama undangan ini, saya turut mengundang
     Bapak/Ibu/Saudara untuk hadir acara pernikahan kami
@@ -271,33 +311,31 @@ app.post('/send-invitation', async (req, res) => {
     Kami berharap Bapak/Ibu/Saudara berkenan untuk hadir di acara kami ini.
     Anda bisa konfirmasi kehadiran undangan
     Atau ketik "RSVP"
-`;
-}
-console.log('Invitation Text:', invitationText);
+  `;
 
   try {
-      const result = await sendText(chatId, invitationText);
     // Simpan pesan undangan ke database
-    await sequelize.query(
-      `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      {
-         replacements: [
-          null, // Assuming WAHA API returns a message ID
-          new Date(), // current date
-          'text',
-          'Sent',
-          new Date(),
-          null,
-          null,
-          null,
-          null,
-          yourWhatsAppId, // Change as per your sender logic
-          formattedChatId,
-          invitationText
-        ],
-      }
-    );
+     await sequelize.query(
+          `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          {
+            replacements: [
+              null, // Assuming WAHA API returns a message ID
+              new Date(), // current date
+              'text',
+              'Sent',
+              new Date(),
+              null,
+              null,
+              null,
+              null,
+              yourWhatsAppId, // Change as per your sender logic
+              chatId,
+              invitationText
+            ],
+          }
+        );
+
 
     // Kirim teks (misalnya melalui WhatsApp API)
     await sendText(chatId, invitationText);
@@ -320,103 +358,52 @@ app.get('/message', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'message.html'));
 });
 
-
-
-
 app.post('/webhook', async (req, res) => {
-  const webhookData= req.body;
- 
+  const webhookData = req.body;
   console.log('Received message webhook:', webhookData);
   console.log('Payload:', JSON.stringify(webhookData, null, 2));
 
-    // Check if webhookData and payload are defined
-    if (!webhookData || !webhookData.payload) {
-      console.error('Webhook data or payload is missing');
-      return res.status(400).send('Invalid webhook data');
-    }
+  const { from, body, isGroupMsg } = webhookData.payload;
 
-  const { payload } = webhookData;
-  console.log('Payload:', payload);
-  
-  const { id, from, to, body, timestamp, hasMedia } = payload;
-  
+  if (isGroupMsg || from === yourWhatsAppId) {
+    console.log('Message is from a group or from myself. No reply will be sent.');
+    return res.status(200).send('Message from a group or myself. No reply sent.');
+  }
 
-  // Process phone numbers
-  const processPhoneNumber = (number) => {
-    if (number.endsWith('@c.us')) {
-      number = number.slice(0, -5); // Remove '@c.us' from the end
-    }
-    if (number.startsWith('62')) {
-      number = '0' + number.slice(2); // Replace '62' with '0'
-    }
-    return number;
-  };
   let replyText = '';
   let finalMessage = ''; // Declare finalMessage at the top
   let finalMessage2 = ''; // Declare finalMessage2 at the top
 
-  const template = globaltemplate;
-
-   const sender_number = processPhoneNumber(payload.from); // Nomor pengirim
-  const recipient_number = processPhoneNumber(payload.to); // Nomor penerima
-  const yourNumber = '083129701774'
-  
-
-    console.log('Sender Number:', sender_number);
-  console.log('Recipient Number:', recipient_number);
-  
-  
-      let status = 'Received'; // Default status
-
-  // Determine message status based on sender_number
-  if (sender_number === yourNumber) {
-    console.log('Message is from the bot itself.');
-    status = 'Sent'; // Bot sends the message
-  } else {
-    console.log('Message is from another user.');
-    // Keep status as 'Received' or adjust according to your needs
-  }
-
-
   // Save received message
   try {
     await sequelize.query(
-      `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
+        `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      {
-        replacements: [
-          null, // Or a unique ID if you have one
-          new Date(),
-          'text',
-          status,
-          null,
-          null,
-          null,
-          null,
-          null,
-          sender_number,
-          recipient_number, // Change as per your sender logic
-          body
-        ],
-      }
-    );
+        {
+          replacements: [
+            null, // Or a unique ID if you have one
+            new Date(),
+            'text',
+            'Received',
+            null,
+            null,
+            null,
+            null,
+            null,
+            from,
+            yourWhatsAppId, // Change as per your sender logic
+            body
+          ],
+        }
+      );
   } catch (error) {
     console.error('Error saving received message:', error);
   }
 
-  if (from === yourWhatsAppId) {
-    console.log('Message is from myself. No reply will be sent.');
-    return res.status(200).send('Message from myself. No reply sent.');
-  }
-
-  else if (body.toLowerCase().includes('hello')) {
-    replyText = template === 'english'
-      ? 'Hello! How can I assist you today?'
-      : 'Halo! Bagaimana saya bisa membantu Anda hari ini?';
+  if (body.toLowerCase().includes('hello')) {
+    replyText = 'Hello! How can I assist you today?';
   } else if (body.toLowerCase().includes('help')) {
-    replyText = template === 'english'
-      ? 'Here are some commands you can use: "rsvp"'
-      : 'Berikut beberapa perintah yang dapat Anda gunakan: "rsvp"';
+    replyText = 'Here are some commands you can use: "rsvp"';
   } else if (body.toLowerCase().includes('rsvp')) {
     try {
       const [rows] = await sequelize.query(
@@ -428,50 +415,23 @@ app.post('/webhook', async (req, res) => {
 
       if (rows.length > 0) {
         const existingRSVP = rows[0];
-        replyText = template === 'english' 
-          ? `You are already registered with the following details:
-             Attendance: Not Attending
-             Groom's Name: ${existingRSVP.groom_name} & Bride's Name: ${existingRSVP.bride_name}
-             Wedding Date: ${existingRSVP.date_akad}
-             Wedding Time: ${existingRSVP.time_akad}
-             Reception Date: ${existingRSVP.date_resepsi}
-             Reception Time: ${existingRSVP.time_resepsi}
-             
-             Do you want to reset this registration? Reply with *RESET* if yes.`
-          : `Anda sudah terdaftar dengan rincian sebagai berikut:
-             Kehadiran: Tidak Hadir
-             Nama Pengantin: ${existingRSVP.groom_name} & ${existingRSVP.bride_name}
-             Tanggal Akad: ${existingRSVP.date_akad}
-             Waktu Akad: ${existingRSVP.time_akad}
-             Tanggal Resepsi: ${existingRSVP.date_resepsi}
-             Waktu Resepsi: ${existingRSVP.time_resepsi}
+        replyText = `
+          Anda sudah terdaftar dengan rincian sebagai berikut:
+          Kehadiran : Tidak Hadir
+          Nama Pengantin: ${existingRSVP.groom_name} & ${existingRSVP.bride_name}
+          Tanggal Akad: ${existingRSVP.date_akad}
+          Waktu Akad: ${existingRSVP.time_akad}
+          Lokasi Akad: ${existingRSVP.location_akad}
+          Tanggal Resepsi: ${existingRSVP.date_resepsi}
+          Waktu Resepsi: ${existingRSVP.time_resepsi}
+          Lokasi Resepsi: ${existingRSVP.location_resepsi}
           
-            Apakah Anda ingin mereset pendaftaran ini? Balas dengan *RESET* jika ya.
+          Apakah Anda ingin mereset pendaftaran ini? Balas dengan *RESET* jika ya.
         `;
         awaitingResetConfirmation = true;
       } else {
-        replyText = template === 'english'
-        ?`Hi,  
-        With this invitation, I would like to invite Mr./Mrs./Sir to attend our wedding ceremony.  
-        *${globalGroomName} & ${globalBrideName}*  
-        The Akad (Islamic marriage contract) will be held on  
-        *Day and Date: ${globalDateAkad}*  
-        *Time: ${globalTimeAkad}.*  
-        *Location: ${globalLocationAkad}*  
-
-        The Reception will be held on  
-        *Day and Date: ${globalDateResepsi}*  
-        *Time: ${globalTimeResepsi}.*  
-        *Location: ${globalLocationResepsi}*  
-
-        This is an invitation from us who are in happiness.  
-        We hope that Mr./Mrs./Sir will be able to attend our event.  
-
-        Will you attend? Reply with  
-        *Attend*  
-        *Not Attend* 
-        `
-        : `Hii,
+        replyText = `
+          Hii,
           Bersama undangan ini, saya turut mengundang Bapak/Ibu/Saudara untuk hadir acara pernikahan kami
           *${globalGroomName} & ${globalBrideName}*
           Akad akan di gelar pada
@@ -489,7 +449,8 @@ app.post('/webhook', async (req, res) => {
 
           Apakah Anda akan hadir? Balas dengan
           *Hadir*
-          *Tidak Hadir*`;
+          *Tidak Hadir*
+        `;
         awaitingGuests = false;
         awaitingAccommodation = false;
         awaitingResetConfirmation = false;
@@ -509,51 +470,35 @@ app.post('/webhook', async (req, res) => {
           }
         );
 
-        await sequelize.query(
-          `DELETE FROM messaging WHERE sender_number = ?`,
-          {
-            replacements: [from],
-            transaction,
-          }
-        );
+        // await sequelize.query(
+        //   `DELETE FROM messaging WHERE sender_number = ?`,
+        //   {
+        //     replacements: [from],
+        //     transaction,
+        //   }
+        // );
       });
 
-      replyText = template === 'english'  
-      ?`Your registration has been reset. Please start over by replying with *RSVP*.`
-      :'Pendaftaran Anda telah direset. Silakan mulai dari awal balas dengan *RSVP*';
+      replyText = 'Pendaftaran Anda telah direset. Silakan mulai dari awal balas dengan *RSVP*';
       awaitingResetConfirmation = false;
       awaitingGuests = false;
       awaitingAccommodation = false;
     } catch (error) {
       console.error('Error resetting RSVP data:', error);
-      replyText = template === 'english'
-       ?`Failed to reset the data. Please try again later.`
-       :'Gagal mereset data. Mohon coba lagi nanti.';
+      replyText = 'Gagal mereset data. Mohon coba lagi nanti.';
     }
-  } else if (body.toLowerCase() === 'hadir' || body.toLowerCase() === 'attend') {
+  } else if (body.toLowerCase() === 'hadir') {
     awaitingGuests = true;
     awaitingAccommodation = false;
     awaitingResetConfirmation = false;
-    replyText = template === 'english'
-    ? `Thank you for your confirmation!  
-      Your invitation is valid for 4 people\n  
-      How many people will be attending? (example: *2*)`
-    :`
+    replyText = `
       Terima kasih atas konfirmasinya!
       Undangan anda berlaku 4 orang\n
       Berapa orang yang akan hadir? (contoh: *2*)
     `;
-  } else if (body.toLowerCase() === 'tidak hadir' || body.toLowerCase() === 'not attend') {
-    finalMessage2 = template === 'english'
-     ?`Attendance: Not Attending  
-      Groom's Name: ${globalGroomName} & Bride's Name: ${globalBrideName}  
-      Akad Date: ${globalDateAkad}  
-      Akad Time: ${globalTimeAkad}  
-      Akad Location: ${globalLocationAkad}  
-      Reception Date: ${globalDateResepsi}  
-      Reception Time: ${globalTimeResepsi}  
-      Reception Location: ${globalLocationResepsi}`
-     :`Kehadiran : Tidak hadir
+  } else if (body.toLowerCase() === 'tidak hadir') {
+    finalMessage2 = 
+     `Kehadiran : Tidak hadir
       Nama Pengantin: ${globalGroomName} & ${globalBrideName}
       Tanggal Akad: ${globalDateAkad}
       Waktu Akad: ${globalTimeAkad}
@@ -562,13 +507,7 @@ app.post('/webhook', async (req, res) => {
       Waktu Resepsi: ${globalTimeResepsi}
       Lokasi Resepsi: ${globalLocationResepsi}`;
 
-    replyText = template === "english"
-    ?`Thank you for the information.  
-      If there are any changes, please inform us again by replying with *RESET*  
-
-      Here are the event details:  
-      ${finalMessage2}  `
-    :`
+    replyText = `
       Terima kasih atas informasinya.
       Jika ada perubahan, silakan informasikan kembali dengan membalas *RESET*
       
@@ -603,11 +542,11 @@ app.post('/webhook', async (req, res) => {
             transaction,
           }
         );
-        await sendText(recipient_number, replyText);
+
         await sequelize.query(
           `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          {
+            {
             replacements: [
           null, // Or a unique ID if you have one
           new Date(),
@@ -618,45 +557,33 @@ app.post('/webhook', async (req, res) => {
           null,
           null,
           null,
-          sender_number,
-          recipient_number, // Change as per your sender logic
-          replyText
+          from,
+          yourWhatsAppId, // Change as per your sender logic
+          finalMessage2
         ],
             transaction,
           }
         );
-        res.status(200).send('Reply sent');
       });
     } catch (error) {
       console.error('Error saving RSVP data to database:', error);
-      replyText = template === 'english'
-      ?`An error occurred while saving the RSVP data.`
-      :'Terjadi kesalahan saat menyimpan data RSVP.';
+      replyText = 'Terjadi kesalahan saat menyimpan data RSVP.';
     }
   } else if (awaitingGuests && body.toLowerCase().match(/^\d+$/)) {
     const guests = parseInt(body);
 
     if (guests > 4) {
-      replyText = template === 'english' 
-      ?`Sorry, the number you provided exceeds the quota. Please try again.`
-      :'Mohon maaf, jumlah yang Anda kirimkan melebihi kuota. Mohon ulangi lagi.';
+      replyText = 'Mohon maaf, jumlah yang Anda kirimkan melebihi kuota. Mohon ulangi lagi.';
     } else {
       globalGuests = guests;
       awaitingGuests = false;
       awaitingAccommodation = true;
       awaitingResetConfirmation = false;
-      replyText = template === 'english'
-      ?` You will receive accommodation facilities. For how many nights will you be staying at the Hotel Malang?  
-        1. 1 night, check-in on 16 January 2024, check-out on 17 January 2024  
-        2. 1 night, check-in on 15 January 2024, check-out on 16 January 2024  
-        3. No hotel
-        (example: *2*)`
-      :`
+      replyText = `
         Anda akan mendapatkan fasilitas penginapan untuk akomodasi. Hotel Malang berapa lama Anda akan menginap?
         1. 1 malam check in di 16 Januari 2024, check out di 17 Januari 2024
         2. 1 malam check in di 15 Januari 2024, check out di 16 Januari 2024
         3. Tanpa hotel
-        (contoh: *2*)
       `;
     }
   } else if (awaitingAccommodation && body.toLowerCase().match(/^\d+$/)) {
@@ -664,37 +591,17 @@ app.post('/webhook', async (req, res) => {
     let accommodationText = '';
 
     if (accommodationOption === 1) {
-      accommodationText = template === 'english'
-        ? '1 night check-in on January 16, 2024, check-out on January 17, 2024'
-        : '1 malam check-in di 16 Januari 2024, check-out di 17 Januari 2024';
+      accommodationText = '1 malam check-in di 16 Januari 2024, check-out di 17 Januari 2024';
     } else if (accommodationOption === 2) {
-      accommodationText = template === 'english'
-        ? '1 night check-in on January 15, 2024, check-out on January 16, 2024'
-        : '1 malam check-in di 15 Januari 2024, check-out di 16 Januari 2024';
+      accommodationText = '1 malam check-in di 15 Januari 2024, check-out di 16 Januari 2024';
     } else if (accommodationOption === 3) {
-      accommodationText = template === 'english'
-        ? 'No hotel required'
-        : 'Tanpa hotel';
+      accommodationText = 'Tanpa hotel';
     } else {
-      replyText = template === 'english'
-      ?`Invalid option. Please choose 1, 2, or 3.`
-      :'Pilihan tidak valid. Mohon pilih antara 1, 2, atau 3.';
+      replyText = 'Pilihan tidak valid. Mohon pilih antara 1, 2, atau 3.';
       return res.status(200).send(replyText);
     }
 
-    finalMessage = template === 'english'
-    ?`Thank you for confirming your attendance!  
-      Registration Details:  
-      Couple's Name: ${globalGroomName} & ${globalBrideName}  
-      Akad Date: ${globalDateAkad}  
-      Akad Time: ${globalTimeAkad}  
-      Akad Location: ${globalLocationAkad}  
-      Reception Date: ${globalDateResepsi}  
-      Reception Time: ${globalTimeResepsi}  
-      Reception Location: ${globalLocationResepsi}  
-      Number of Guests: ${globalGuests}  
-      Accommodation: ${accommodationText}  `
-    :`
+    finalMessage = `
       Terima kasih telah mengonfirmasi kehadiran Anda!
       Detail Pendaftaran:
       Nama Pengantin: ${globalGroomName} & ${globalBrideName}
@@ -739,16 +646,11 @@ app.post('/webhook', async (req, res) => {
           `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           {
-            replacements:  [null, new Date(), 'text', 'Sent',null, null, null,null, null, sender_number, recipient_number, replyText],
+            replacements:  [null, new Date(), 'text', 'Sent',null, null, null,null, null, from, yourWhatsAppId, finalMessage],
             transaction,
           }
         );
-         replyText = template === 'english'
-         ?`Thank you for completing the RSVP. We look forward to your attendance.  
-        Your registration details:  
-
-        ${finalMessage} `
-         :`Terimakasih telah melengkapi RSVP. Kami menunggu kehadiran Anda.
+         replyText = `Terimakasih telah melengkapi RSVP. Kami menunggu kehadiran Anda.
         Daftar kehadiran Anda:
 
         ${finalMessage}
@@ -758,9 +660,7 @@ app.post('/webhook', async (req, res) => {
       });
     } catch (error) {
       console.error('Error saving RSVP data to database:', error);
-      replyText = template === 'english' 
-      ?`An error occurred while saving the RSVP data.`
-      :'Terjadi kesalahan saat menyimpan data RSVP.';
+      replyText = 'Terjadi kesalahan saat menyimpan data RSVP.';
     }
   } 
 
@@ -770,17 +670,17 @@ app.post('/webhook', async (req, res) => {
     if (replyText) {
       await sendText(from, replyText);
       await sequelize.query(
-     `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
+      `INSERT INTO messaging (messageid, tanggal, type, status, sentat, deliveredat, seenat, id_pengguna, id_tamu, sender_number, recipient_number, message)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       {
-        replacements: [null, new Date(), 'text', 'Sent',null, null, null,null, null, sender_number, recipient_number, replyText],
+        replacements: [null, new Date(), 'text', 'Sent',null, null, null,null, null, yourWhatsAppId, from, replyText],
       }
     );
     }
-    return res.status(200).send('Reply sent');
+    res.status(200).send('Reply sent');
   } catch (error) {
     console.error('Error sending reply:', error);
-    return res.status(500).send('Failed to send reply');
+    res.status(500).send('Failed to send reply');
   }
 });
 
